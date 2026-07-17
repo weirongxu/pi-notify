@@ -13,7 +13,6 @@ interface NotifyEventsConfig {
 /** Raw shape of the `piNotify` node in settings.json. */
 interface NotifyConfig {
   readonly enabled?: boolean
-  readonly title?: string
   readonly askTools?: readonly string[]
   readonly events?: NotifyEventsConfig
   readonly finishedThrottleSecs?: number
@@ -22,7 +21,6 @@ interface NotifyConfig {
 /** Fully resolved configuration with defaults applied. */
 export interface ResolvedNotifyConfig {
   readonly enabled: boolean
-  readonly title: string
   readonly askTools: ReadonlySet<string>
   readonly ask: boolean
   readonly permission: boolean
@@ -54,7 +52,6 @@ export function loadConfig(): ResolvedNotifyConfig {
   const events = cfg.events ?? {}
   return {
     enabled: cfg.enabled ?? true,
-    title: cfg.title ?? 'Pi',
     askTools: new Set(cfg.askTools ?? DEFAULT_ASK_TOOLS),
     ask: events.ask ?? true,
     permission: events.permission ?? true,

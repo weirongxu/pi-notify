@@ -1,3 +1,5 @@
+import { basename } from 'node:path'
+
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import { loadConfig, type ResolvedNotifyConfig } from './config.js'
@@ -18,6 +20,8 @@ interface PermissionUiPromptPayload {
 
 export default function piNotifyExtension(pi: ExtensionAPI): void {
   const config = loadConfig()
+  const dirName = basename(process.cwd())
+  const title = `pi — ${dirName}`
 
   let agentStartedAt: number | undefined
   let unsubscribePermission: (() => void) | undefined
@@ -33,7 +37,7 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
         const detail =
           event.message ??
           `Permission needed: ${event.surface ?? 'action'}${event.value ? ` — ${event.value}` : ''}`
-        notify(config.title, detail)
+        notify(title, detail)
       },
     )
   })
@@ -50,14 +54,14 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
   pi.on('tool_call', (event) => {
     if (!config.enabled || !config.ask) return
     if (!config.askTools.has(event.toolName)) return
-    notify(config.title, 'Pi has a question for you')
+    notify(title, 'Pi has a question for you')
   })
 
   pi.on('agent_settled', () => {
     if (!config.enabled || !config.finished) return
     if (shouldThrottleFinished(config, agentStartedAt)) return
     agentStartedAt = undefined
-    notify(config.title, 'Ready for input')
+    notify(title, 'Ready for input')
   })
 }
 
