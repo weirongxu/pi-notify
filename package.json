@@ -1,5 +1,5 @@
 {
-  "name": "pi-notify",
+  "name": "pi-desktop-notify",
   "version": "0.1.0",
   "description": "Desktop notification extension for the pi coding agent. Fires native desktop notifications when pi finishes, asks a question, or requests permission.",
   "keywords": [
