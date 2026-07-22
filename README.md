@@ -23,7 +23,7 @@ Or, for local development, add the repo path to your `~/.pi/agent/settings.json`
 | Event          | Source                                                                                                           | Default body                        |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | **Finished**   | `agent_settled` (pi is idle and waiting for input)                                                               | `Ready for input`                   |
-| **Ask**        | `tool_call` on a question tool (default: `ask_user_question`)                                                    | `Pi has a question for you`         |
+| **Ask**        | `tool_call` on tools listed in `askTools` (default: `["ask_user", "ask_user_question"]`)                        | `Pi has a question for you`         |
 | **Permission** | `permissions:ui_prompt` broadcast by [`@gotgenes/pi-permission-system`](https://github.com/gotgenes/pi-packages) | the permission prompt's own message |
 
 The **Permission** trigger is a soft dependency: if `pi-permission-system` is not installed, permission notifications are simply skipped — the other two events still fire.
@@ -37,13 +37,14 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
   "piNotify": {
     "enabled": true, // master switch
     "title": "Pi", // notification title
-    "askTools": ["ask_user_question"], // tool names that count as "ask"
+    "askTools": ["ask_user", "ask_user_question"], // tool names that trigger ask notifications (empty array to disable)
     "events": {
-      "ask": true,
       "permission": true,
       "finished": true,
     },
     "finishedThrottleSecs": 0, // 0 = always notify; >0 = skip finished toasts for runs shorter than N seconds
+    "onlyNotifyWhenUnfocused": false, // only notify when user has been inactive
+    "unfocusedActivityThresholdSecs": 30, // seconds of inactivity before considering user "unfocused"
   },
 }
 ```
@@ -59,3 +60,7 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
 - Notifications fire in all run modes (interactive TUI, `pi -p`, and JSON).
 - Permission notifications are gated to UI-bearing sessions, which also prevents duplicate toasts from in-process subagent children.
 - "Finished" fires on every `agent_settled`. For rapid interactive back-and-forth, set `finishedThrottleSecs` to suppress toasts for short runs.
+- Set `onlyNotifyWhenUnfocused: true` to suppress notifications when you're actively using pi. User activity (keypresses) in TUI mode is tracked, and notifications are only sent after `unfocusedActivityThresholdSecs` seconds of inactivity.
+- **Hardcoded dependencies**: Some internal tool names and event channels are duplicated from pi and pi-permission-system since they aren't exported. If these change in upstream packages, notifications may stop working:
+  - `ask_user`, `ask_user_question` - built-in pi question tools
+  - `permissions:ui_prompt` - pi-permission-system broadcast channel
