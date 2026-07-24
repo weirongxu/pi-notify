@@ -7,6 +7,9 @@ import type { ResolvedNotifyConfig } from './config.js'
 
 const WINDOW_ID_FORMAT = '#{window_id}'
 const WINDOW_NAME_FORMAT = '#{window_name}'
+const LIST_FORMAT = '#{pane_tty}\t#{window_id}'
+const NEWLINE = '\n'
+const TAB = '\t'
 
 export class TmuxTitleTracker {
   private windowId: string | undefined
@@ -129,14 +132,14 @@ export class TmuxTitleTracker {
     try {
       const out = execFileSync(
         'tmux',
-        ['list-panes', '-a', '-F', '#{pane_tty}\t#{window_id}'],
+        ['list-panes', '-a', '-F', LIST_FORMAT],
         {
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'ignore'],
         },
       )
-      for (const line of out.split('\n')) {
-        const [paneTty, windowId] = line.split('\t')
+      for (const line of out.split(NEWLINE)) {
+        const [paneTty, windowId] = line.split(TAB)
         if (paneTty === tty) return windowId
       }
       return undefined
