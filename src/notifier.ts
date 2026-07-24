@@ -18,12 +18,10 @@ function detectWSL(): boolean {
   }
 }
 
-/** Escape text for interpolation into a single-quoted PowerShell string. */
 function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''").replace(/\r?\n/g, ' ')
 }
 
-/** Raise a Windows toast via powershell.exe (WSL or native Windows). */
 function windowsToast(title: string, body: string): void {
   const app = escapePowerShell(title)
   const text = escapePowerShell(body)
@@ -36,18 +34,14 @@ function windowsToast(title: string, body: string): void {
     `[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('${app}').Show([Windows.UI.Notifications.ToastNotification]::new($t))`,
   ].join('; ')
   const exe = process.platform === 'win32' ? 'powershell' : 'powershell.exe'
-  execFile(exe, ['-NoProfile', '-NonInteractive', '-Command', script], () => {
-    // Best-effort: toast failures must never surface to the agent.
-  })
+  execFile(exe, ['-NoProfile', '-NonInteractive', '-Command', script], () => {})
 }
 
-/** Send a desktop notification using the platform-appropriate backend. */
 async function desktopNotify(title: string, body: string): Promise<void> {
   if (isWSL || process.platform === 'win32') {
     windowsToast(title, body)
     return
   }
-  // macOS, native Linux, and other platforms: let node-notifier pick the backend.
   const notifier = (await import('node-notifier')).default
   await new Promise<void>((resolve) => {
     notifier.notify({ title, message: body, wait: false }, () => {
@@ -56,12 +50,6 @@ async function desktopNotify(title: string, body: string): Promise<void> {
   })
 }
 
-/**
- * Fire-and-forget desktop notification. Never throws — a failed notification
- * must not interrupt the agent loop.
- */
 export function notify(title: string, body: string): void {
-  void desktopNotify(title, body).catch(() => {
-    /* swallow send errors */
-  })
+  void desktopNotify(title, body).catch(() => {})
 }

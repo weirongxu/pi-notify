@@ -3,13 +3,11 @@ import { join } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
-/** Per-event toggles, all default to enabled. */
 interface NotifyEventsConfig {
   readonly permission?: boolean
   readonly finished?: boolean
 }
 
-/** Raw shape of the `piNotify` node in settings.json. */
 interface NotifyConfig {
   readonly enabled?: boolean
   readonly notifyTools?: readonly string[]
@@ -17,9 +15,9 @@ interface NotifyConfig {
   readonly finishedThrottleSecs?: number
   readonly onlyNotifyWhenUnfocused?: boolean
   readonly unfocusedActivityThresholdSecs?: number
+  readonly tmuxSymbol?: string
 }
 
-/** Fully resolved configuration with defaults applied. */
 export interface ResolvedNotifyConfig {
   readonly enabled: boolean
   readonly notifyTools: ReadonlySet<string>
@@ -28,6 +26,7 @@ export interface ResolvedNotifyConfig {
   readonly finishedThrottleMs: number
   readonly onlyNotifyWhenUnfocused: boolean
   readonly unfocusedActivityThresholdMs: number
+  readonly tmuxSymbol: string
 }
 
 /**
@@ -38,7 +37,8 @@ export interface ResolvedNotifyConfig {
  */
 const DEFAULT_NOTIFY_TOOLS = ['ask_user', 'ask_user_question'] as const
 
-/** Global pi settings file that owns the `piNotify` node. */
+const DEFAULT_TMUX_SYMBOL = '🔔'
+
 const SETTINGS_PATH = join(getAgentDir(), 'settings.json')
 
 function readRawConfig(): NotifyConfig {
@@ -54,7 +54,6 @@ function readRawConfig(): NotifyConfig {
   }
 }
 
-/** Load and resolve the `piNotify` config from pi's global settings.json. */
 export function loadConfig(): ResolvedNotifyConfig {
   const cfg = readRawConfig()
   const events = cfg.events ?? {}
@@ -69,5 +68,6 @@ export function loadConfig(): ResolvedNotifyConfig {
       0,
       (cfg.unfocusedActivityThresholdSecs ?? 30) * 1000,
     ),
+    tmuxSymbol: cfg.tmuxSymbol ?? DEFAULT_TMUX_SYMBOL,
   }
 }
