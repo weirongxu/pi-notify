@@ -10,8 +10,6 @@ const FOCUS_OUT = '\x1b[O'
 const ENABLE_FOCUS_REPORTING = '\x1b[?1004h'
 const DISABLE_FOCUS_REPORTING = '\x1b[?1004l'
 
-// TODO review
-
 export class FocusTracker {
   private _focused: boolean | undefined = undefined
   private _lastActivityAt = Date.now()
