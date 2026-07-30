@@ -3,11 +3,11 @@ import { basename } from 'node:path'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import { loadConfig } from './config.js'
+import { EventsNotifier } from './events.js'
 import { FinishedNotifier } from './finished.js'
 import { FocusTracker } from './focus.js'
 import { notify } from './notifier.js'
 import { NotifyTest } from './notify-test.js'
-import { PermissionNotifier } from './permission.js'
 import { SessionState } from './states.js'
 import { TmuxTitleTracker } from './tmux-title.js'
 import { ToolCallNotifier } from './tool.js'
@@ -19,7 +19,7 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
 
   const tmuxTitleTracker = new TmuxTitleTracker(pi, config)
   const focusTracker = new FocusTracker(pi, tmuxTitleTracker, config)
-  const permissionNotifier = new PermissionNotifier(pi, config)
+  const eventsNotifier = new EventsNotifier(pi, config)
   const toolNotifier = new ToolCallNotifier(pi, config)
   const finishedNotifier = new FinishedNotifier(pi, config)
   const notifyTest = new NotifyTest(pi, title, tmuxTitleTracker)
@@ -41,7 +41,7 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
 
   tmuxTitleTracker.register()
   focusTracker.register()
-  permissionNotifier.register(notifyReal)
+  eventsNotifier.register(notifyReal)
   toolNotifier.register(notifyReal)
   finishedNotifier.register(notifyReal)
   notifyTest.register()

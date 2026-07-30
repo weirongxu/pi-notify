@@ -24,9 +24,9 @@ Or, for local development, add the repo path to your `~/.pi/agent/settings.json`
 | -------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | **Finished**   | `agent_settled` (pi is idle and waiting for input)                                                               | `Ready for input`                   |
 | **Ask**        | `tool_call` on tools listed in `askTools` (default: `["ask_user", "ask_user_question"]`)                        | `Pi has a question for you`         |
-| **Permission** | `permissions:ui_prompt` broadcast by [`@gotgenes/pi-permission-system`](https://github.com/gotgenes/pi-packages) | the permission prompt's own message |
+| **Custom events** | Custom pi event channels (default: `permissions:ui_prompt`)                              | Customizable (default: `Permission prompt`) |
 
-The **Permission** trigger is a soft dependency: if `pi-permission-system` is not installed, permission notifications are simply skipped — the other two events still fire.
+Custom event notifications are soft dependencies: if a package that broadcasts a specific event is not installed, that notification is simply skipped — the other events still fire.
 
 ## Configuration
 
@@ -36,15 +36,30 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
 {
   "piNotify": {
     "enabled": true, // master switch
-    "title": "Pi", // notification title
     "askTools": ["ask_user", "ask_user_question"], // tool names that trigger ask notifications (empty array to disable)
+    "finished": true, // enable/disable "Ready for input" notification
     "events": {
-      "permission": true,
-      "finished": true,
+      "permissions:ui_prompt": "Permission prompt", // custom event channel -> notification message
+      "my:custom:event": "Custom event triggered", // add your own custom events
     },
     "finishedThrottleSecs": 0, // 0 = always notify; >0 = skip finished toasts for runs shorter than N seconds
     "onlyNotifyWhenUnfocused": false, // only notify when user has been inactive
     "unfocusedActivityThresholdSecs": 30, // seconds of inactivity before considering user "unfocused"
+  },
+}
+```
+
+### Disabling specific events
+
+To disable a specific event, set its message to an empty string:
+
+```jsonc
+{
+  "piNotify": {
+    "finished": true,
+    "events": {
+      "permissions:ui_prompt": "", // disable permission notifications
+    },
   },
 }
 ```
@@ -58,7 +73,7 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
 ## Notes & limitations
 
 - Notifications fire in all run modes (interactive TUI, `pi -p`, and JSON).
-- Permission notifications are gated to UI-bearing sessions, which also prevents duplicate toasts from in-process subagent children.
+- Custom event notifications are gated to UI-bearing sessions, which also prevents duplicate toasts from in-process subagent children.
 - "Finished" fires on every `agent_settled`. For rapid interactive back-and-forth, set `finishedThrottleSecs` to suppress toasts for short runs.
 - Set `onlyNotifyWhenUnfocused: true` to suppress notifications when you're actively using pi. User activity (keypresses) in TUI mode is tracked, and notifications are only sent after `unfocusedActivityThresholdSecs` seconds of inactivity.
 - **Hardcoded dependencies**: Some internal tool names and event channels are duplicated from pi and pi-permission-system since they aren't exported. If these change in upstream packages, notifications may stop working:
