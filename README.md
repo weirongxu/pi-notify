@@ -30,13 +30,9 @@ Custom event notifications are soft dependencies: if a package that broadcasts a
 
 ## Configuration
 
-All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everything is optional.
-
-```jsonc
+All options live under the `desktopNotify` key in `~/.pi/agent/settings.json`. Everything is optional.
 {
-  "piNotify": {
-    "enabled": true, // master switch
-    "askTools": ["ask_user", "ask_user_question"], // tool names that trigger ask notifications (empty array to disable)
+  "desktopNotify": {
     "finished": true, // enable/disable "Ready for input" notification
     "events": {
       "permissions:ui_prompt": "Permission prompt", // custom event channel -> notification message
@@ -55,9 +51,7 @@ To disable a specific event, set its message to an empty string:
 
 ```jsonc
 {
-  "piNotify": {
-    "finished": true,
-    "events": {
+  "desktopNotify": {
       "permissions:ui_prompt": "", // disable permission notifications
     },
   },
