@@ -11,10 +11,8 @@ export class FinishedNotifier {
 
   register(notify: NotifyAction): void {
     if (!this.config.finished) return
-    this.pi.on('agent_start', () => {
-      this.pi.on('agent_settled', () => {
-        notify('Ready for input')
-      })
+    this.pi.on('agent_settled', () => {
+      notify('Ready for input')
     })
   }
 }
