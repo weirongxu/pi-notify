@@ -41,7 +41,7 @@ const DEFAULT_TMUX_SYMBOL = '🔔'
 
 const DEFAULT_EVENTS: NotifyEventsConfig = {
   'permissions:ui_prompt': 'Permission prompt',
-  'git:shortcuts:result': 'Git command result',
+  'git:sync:result': 'Git command result',
 }
 
 const SETTINGS_PATH = join(getAgentDir(), 'settings.json')
