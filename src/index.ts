@@ -6,11 +6,14 @@ import { loadConfig } from './config.js'
 import { EventsNotifier } from './events.js'
 import { FinishedNotifier } from './finished.js'
 import { FocusTracker } from './focus.js'
+import { JobTracker } from './jobs.js'
 import { notify } from './notifier.js'
 import { NotifyTest } from './notify-test.js'
 import { SessionState } from './states.js'
 import { TmuxTitleTracker } from './tmux-title.js'
 import { ToolCallNotifier } from './tool.js'
+
+export { JOB_END_EVENT, JOB_START_EVENT } from './jobs.js'
 
 export default function piNotifyExtension(pi: ExtensionAPI): void {
   const config = loadConfig()
@@ -21,7 +24,8 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
   const focusTracker = new FocusTracker(pi, tmuxTitleTracker, config)
   const eventsNotifier = new EventsNotifier(pi, config)
   const toolNotifier = new ToolCallNotifier(pi, config)
-  const finishedNotifier = new FinishedNotifier(pi, config)
+  const jobTracker = new JobTracker(pi)
+  const finishedNotifier = new FinishedNotifier(pi, config, jobTracker)
   const notifyTest = new NotifyTest(pi, title, tmuxTitleTracker)
   const sessionState = new SessionState(pi)
 
@@ -41,6 +45,7 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
 
   tmuxTitleTracker.register()
   focusTracker.register()
+  jobTracker.register()
   eventsNotifier.register(notifyReal)
   toolNotifier.register(notifyReal)
   finishedNotifier.register(notifyReal)

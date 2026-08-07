@@ -22,11 +22,30 @@ Or, for local development, add the repo path to your `~/.pi/agent/settings.json`
 
 | Event          | Source                                                                                                           | Default body                        |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **Finished**   | `agent_settled` (pi is idle and waiting for input)                                                               | `Ready for input`                   |
+| **Finished**   | `agent_settled` (pi is idle and waiting for input, no active jobs)                                                       | `Ready for input`                   |
 | **Ask**        | `tool_call` on tools listed in `askTools` (default: `["ask_user", "ask_user_question"]`)                        | `Pi has a question for you`         |
 | **Custom events** | Custom pi event channels (default: `permissions:ui_prompt`)                              | Customizable (default: `Permission prompt`) |
+| **Job tracking** | Other extensions emit `desktop-notify:job:start` / `desktop-notify:job:end` | N/A (suppresses "Finished" while jobs active) |
 
 Custom event notifications are soft dependencies: if a package that broadcasts a specific event is not installed, that notification is simply skipped — the other events still fire.
+
+### Job tracking for background tasks
+
+Extensions running background tasks can prevent spurious "Ready for input" notifications by emitting job lifecycle events:
+
+```typescript
+import { JOB_START_EVENT, JOB_END_EVENT } from 'pi-desktop-notify'
+
+function startBackgroundJob(jobId: string): void {
+  pi.events.emit(JOB_START_EVENT, { id: jobId })
+}
+
+function endBackgroundJob(jobId: string): void {
+  pi.events.emit(JOB_END_EVENT, { id: jobId })
+}
+```
+
+When any jobs are active, the `Finished` notification is suppressed until all jobs complete. Events are automatically cleaned up on `session_shutdown`.
 
 ## Configuration
 
