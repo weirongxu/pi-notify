@@ -9,11 +9,20 @@ export class JobTracker {
   private activeJobs = new Set<string>()
   private unsubscribes: Unsubscribe[] = []
   private registered = false
+  private onEndListeners: Array<() => void> = []
 
   constructor(private readonly pi: ExtensionAPI) {}
 
   get hasActiveJobs(): boolean {
     return this.activeJobs.size > 0
+  }
+
+  onEnd(listener: () => void): () => void {
+    this.onEndListeners.push(listener)
+    return () => {
+      const index = this.onEndListeners.indexOf(listener)
+      if (index !== -1) this.onEndListeners.splice(index, 1)
+    }
   }
 
   register(): void {
@@ -39,6 +48,7 @@ export class JobTracker {
         'id' in params &&
         typeof params.id === 'string'
       ) {
+        for (const listener of this.onEndListeners) listener()
         this.activeJobs.delete(params.id)
       }
     })
