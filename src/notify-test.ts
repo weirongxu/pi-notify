@@ -4,7 +4,7 @@ import { notify } from './notifier.js'
 import type { TmuxTitleTracker } from './tmux-title.js'
 import { sleep } from './utils.js'
 
-const DEFAULT_BODY = 'This is a test desktop notification.'
+const DEFAULT_BODY = 'This is a test notification.'
 
 export class NotifyTest {
   constructor(
@@ -15,7 +15,7 @@ export class NotifyTest {
 
   register(): void {
     this.pi.registerCommand('notify-test', {
-      description: 'Fire a test desktop notification',
+      description: 'Fire a test notification',
       handler: async (args) => {
         await sleep(3000)
         this.titleTracker.mark()

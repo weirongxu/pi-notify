@@ -7,7 +7,7 @@ interface NotifyEventsConfig {
   readonly [channel: string]: string
 }
 
-interface NotifyDesktopConfig {
+interface NotifyConfig {
   readonly enabled?: boolean
   readonly notifyTools?: readonly string[]
   readonly events?: NotifyEventsConfig
@@ -45,13 +45,13 @@ const DEFAULT_EVENTS: NotifyEventsConfig = {
 
 const SETTINGS_PATH = join(getAgentDir(), 'settings.json')
 
-function readRawConfig(): NotifyDesktopConfig {
+function readRawConfig(): NotifyConfig {
   if (!existsSync(SETTINGS_PATH)) return {}
   try {
     const parsed = JSON.parse(readFileSync(SETTINGS_PATH, 'utf8')) as {
-      desktopNotify?: NotifyDesktopConfig
+      piNotify?: NotifyConfig
     }
-    return parsed.desktopNotify ?? {}
+    return parsed.piNotify ?? {}
   } catch {
     // Malformed settings.json must not break the agent; fall back to defaults.
     return {}

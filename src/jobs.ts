@@ -2,8 +2,8 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import type { Unsubscribe } from './types.js'
 
-export const JOB_START_EVENT = 'desktop-notify:job:start'
-export const JOB_END_EVENT = 'desktop-notify:job:end'
+export const JOB_START_EVENT = 'pi-notify:job:start'
+export const JOB_END_EVENT = 'pi-notify:job:end'
 
 export class JobTracker {
   private activeJobs = new Set<string>()

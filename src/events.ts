@@ -3,7 +3,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import type { ResolvedNotifyConfig } from './config.js'
 import type { NotifyAction, Unsubscribe } from './types.js'
 
-export const DESKTOP_NOTIFY_EVENT = 'desktop-notify:notify'
+export const PI_NOTIFY_EVENT = 'pi-notify:notify'
 
 export class EventsNotifier {
   private unsubscribes: Unsubscribe[] = []
@@ -26,12 +26,9 @@ export class EventsNotifier {
       this.unsubscribes.push(unsubscribe)
     }
 
-    const customEventUnsub = this.pi.events.on(
-      DESKTOP_NOTIFY_EVENT,
-      (payload) => {
-        notify(String(payload))
-      },
-    )
+    const customEventUnsub = this.pi.events.on(PI_NOTIFY_EVENT, (payload) => {
+      notify(String(payload))
+    })
     this.unsubscribes.push(customEventUnsub)
 
     this.pi.on('session_shutdown', () => {

@@ -1,5 +1,5 @@
 {
-  "name": "pi-desktop-notify",
+  "name": "@raidou/pi-notify",
   "version": "0.1.0",
   "description": "Desktop notification extension for the pi coding agent.",
   "keywords": [
@@ -14,9 +14,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/raidou/pi-desktop-notify.git"
+    "url": "https://github.com/raidou/pi-notify.git"
   },
-  "homepage": "https://github.com/raidou/pi-desktop-notify",
+  "homepage": "https://github.com/raidou/pi-notify",
   "type": "module",
   "files": [
     "src"

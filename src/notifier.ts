@@ -37,7 +37,7 @@ function windowsToast(title: string, body: string): void {
   execFile(exe, ['-NoProfile', '-NonInteractive', '-Command', script], () => {})
 }
 
-async function desktopNotify(title: string, body: string): Promise<void> {
+async function piNotify(title: string, body: string): Promise<void> {
   if (isWSL || process.platform === 'win32') {
     windowsToast(title, body)
     return
@@ -51,5 +51,5 @@ async function desktopNotify(title: string, body: string): Promise<void> {
 }
 
 export function notify(title: string, body: string): void {
-  void desktopNotify(title, body).catch(() => {})
+  void piNotify(title, body).catch(() => {})
 }

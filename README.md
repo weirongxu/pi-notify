@@ -1,20 +1,20 @@
-# pi-desktop-notify
+# @raidou/pi-notify
 
-A desktop notification extension for the [pi](https://github.com/earendil-works/pi-coding-agent) coding agent.
+A notification extension for the [pi](https://github.com/earendil-works/pi-coding-agent) coding agent.
 
-`pi-desktop-notify` fires a native desktop notification on idle, configured tool calls (e.g., `Tool call: ask_user`), and custom pi events (default: `permissions:ui_prompt`).
+`@raidou/pi-notify` fires a native desktop notification on idle, configured tool calls (e.g., `Tool call: ask_user`), and custom pi events (default: `permissions:ui_prompt`).
 
 ## Installation
 
 ```bash
-pi install npm:pi-desktop-notify
+pi install npm:@raidou/pi-notify
 ```
 
 Or, for local development, add the repo path to your `~/.pi/agent/settings.json`:
 
 ```jsonc
 {
-  "extensions": ["/absolute/path/to/pi-desktop-notify"],
+  "extensions": ["/absolute/path/to/pi-notify"],
 }
 ```
 
@@ -31,7 +31,7 @@ Or, for local development, add the repo path to your `~/.pi/agent/settings.json`
 Extensions running background tasks can prevent spurious "Idle" notifications by emitting job lifecycle events. Notifications on `agent_settled` are suppressed while jobs are active. Custom event notifications are soft dependencies: if a package that broadcasts a specific event is not installed, that notification is skipped.
 
 ```typescript
-import { JOB_START_EVENT, JOB_END_EVENT } from 'pi-desktop-notify'
+import { JOB_START_EVENT, JOB_END_EVENT } from '@raidou/pi-notify'
 
 function startBackgroundJob(jobId: string): void {
   pi.events.emit(JOB_START_EVENT, { id: jobId })
@@ -46,11 +46,11 @@ Events are automatically cleaned up on `session_shutdown`.
 
 ## Configuration
 
-All options live under the `desktopNotify` key in `~/.pi/agent/settings.json`. Everything is optional.
+All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everything is optional.
 
 ```jsonc
 {
-  "desktopNotify": {
+  "piNotify": {
     "enabled": true, // master on/off switch (default: true)
     "notifyTools": ["ask_user", "ask_user_question"], // tools that trigger "Tool call" notifications
     "tmuxSymbol": "🔔", // symbol appended to tmux window title (empty string to disable)
@@ -72,7 +72,7 @@ To disable a specific event, set its message to an empty string:
 
 ```jsonc
 {
-  "desktopNotify": {
+  "piNotify": {
     "events": {
       "permissions:ui_prompt": "", // disable permission notifications
     },
@@ -82,11 +82,11 @@ To disable a specific event, set its message to an empty string:
 
 ## Testing
 
-Run `/notify-test` inside pi to fire a test desktop notification.
+Run `/notify-test` inside pi to fire a test notification.
 Pass a string argument (e.g., `/notify-test hello`) to override the body.
 
 ## Platform support
 
-`pi-desktop-notify` prefers `node-notifier` (macOS Notification Center, Linux `notify-send`, native Windows toaster).
+`@raidou/pi-notify` prefers `node-notifier` (macOS Notification Center, Linux `notify-send`, native Windows toaster).
 
-**WSL2 note:** `node-notifier` reports `process.platform === "linux"` and would route to `notify-send`, which is usually not installed under WSL and fails silently. `pi-desktop-notify` detects WSL and raises a Windows toast via `powershell.exe` directly, so notifications reach the Windows Action Center out of the box.
+**WSL2 note:** `node-notifier` reports `process.platform === "linux"` and would route to `notify-send`, which is usually not installed under WSL and fails silently. `@raidou/pi-notify` detects WSL and raises a Windows toast via `powershell.exe` directly, so notifications reach the Windows Action Center out of the box.

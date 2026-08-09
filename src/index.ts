@@ -13,7 +13,7 @@ import { SessionState } from './states.js'
 import { TmuxTitleTracker } from './tmux-title.js'
 import { ToolCallNotifier } from './tool.js'
 
-export { DESKTOP_NOTIFY_EVENT } from './events.js'
+export { PI_NOTIFY_EVENT } from './events.js'
 export { JOB_END_EVENT, JOB_START_EVENT } from './jobs.js'
 
 export default function piNotifyExtension(pi: ExtensionAPI): void {
