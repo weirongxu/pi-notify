@@ -14,9 +14,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/raidou/pi-notify.git"
+    "url": "https://github.com/weirongxu/pi-notify.git"
   },
-  "homepage": "https://github.com/raidou/pi-notify",
+  "homepage": "https://github.com/weirongxu/pi-notify",
   "type": "module",
   "files": [
     "src"
