@@ -1,8 +1,9 @@
 {
   "name": "pi-desktop-notify",
   "version": "0.1.0",
-  "description": "Desktop notification extension for the pi coding agent. Fires native desktop notifications when pi finishes, asks a question, or requests permission.",
+  "description": "Desktop notification extension for the pi coding agent.",
   "keywords": [
+    "pi-package",
     "pi",
     "pi-extension",
     "pi-coding-agent",
@@ -11,6 +12,11 @@
     "wsl"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raidou/pi-desktop-notify.git"
+  },
+  "homepage": "https://github.com/raidou/pi-desktop-notify",
   "type": "module",
   "files": [
     "src"
