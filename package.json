@@ -33,6 +33,7 @@
     "test:lint": "eslint --fix ."
   },
   "dependencies": {
+    "@earendil-works/pi-tui": "0.80.7",
     "node-notifier": "^10.0.1"
   },
   "peerDependencies": {

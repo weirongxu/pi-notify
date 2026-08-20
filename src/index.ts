@@ -3,6 +3,8 @@ import { basename } from 'node:path'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import { loadConfig } from './config.js'
+import { DashboardCommand } from './dashboard/command.js'
+import { StateTracker } from './dashboard/state-tracker.js'
 import { EventsNotifier } from './events.js'
 import { FocusTracker } from './focus.js'
 import { IdleNotifier } from './idle.js'
@@ -29,6 +31,8 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
   const idleNotifier = new IdleNotifier(pi, config, jobTracker)
   const notifyTest = new NotifyTest(pi, title, tmuxTitleTracker)
   const sessionState = new SessionState(pi)
+  const stateTracker = new StateTracker(pi)
+  const dashboardCommand = new DashboardCommand(pi)
 
   function notifyReal(body: string): void {
     if (!config.enabled || !sessionState.hasUI) return
@@ -51,4 +55,6 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
   toolNotifier.register(notifyReal)
   idleNotifier.register(notifyReal)
   notifyTest.register()
+  stateTracker.register()
+  dashboardCommand.register()
 }
