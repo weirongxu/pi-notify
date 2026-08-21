@@ -29,8 +29,7 @@ export class TmuxTitleTracker {
   register(): void {
     this.pi.on('session_start', (_event, ctx) => {
       if (ctx.mode !== 'tui' || !this.enabled) return
-      // Resolve pi's own window up front via its controlling tty, so mark/restore
-      // keep targeting it even if the user switches windows during /new.
+      this.restore()
       const id = this.queryCurrentWindowId()
       if (id === undefined) return
       this.windowId = id
@@ -74,6 +73,7 @@ export class TmuxTitleTracker {
   }
 
   stop(): void {
+    this.restore()
     this.windowId = undefined
     this.originalTitle = undefined
     this.autoRename = undefined

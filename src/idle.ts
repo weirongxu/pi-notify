@@ -36,6 +36,10 @@ export class IdleNotifier {
       this.clearIdleTimer()
     })
 
+    this.pi.on('message_start', () => {
+      this.clearIdleTimer()
+    })
+
     this.pi.on('agent_settled', () => {
       if (this.jobTracker.hasActiveJobs) return
       this.startIdleTimer(notify)
