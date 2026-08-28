@@ -16,19 +16,9 @@ const COLUMNS = [
   { name: 'STATE', width: 8 },
   { name: 'PROJECT', width: 15 },
   { name: 'UPTIME', width: 10 },
-  { name: 'MODEL', width: 20 },
-  { name: 'LAST EVENT', width: undefined },
 ] as const
 
-const [PID_COL, STATE_COL, PROJECT_COL, UPTIME_COL, MODEL_COL] = COLUMNS
-
-const FIXED_COLUMNS_WIDTH =
-  PID_COL.width +
-  STATE_COL.width +
-  PROJECT_COL.width +
-  UPTIME_COL.width +
-  MODEL_COL.width
-const GAPS_WIDTH = (COLUMNS.length - 1) * 2
+const [PID_COL, STATE_COL, PROJECT_COL, UPTIME_COL] = COLUMNS
 
 const MAX_ROWS = Math.max(1, (process.stdout.rows || 20) - 6)
 
@@ -65,8 +55,7 @@ export function createDashboard(props: DashboardProps) {
 
   const dashboardContainer = new Container()
 
-  function updateChildren(width: number): void {
-    const remainingWidth = Math.max(1, width - FIXED_COLUMNS_WIDTH - GAPS_WIDTH)
+  function updateChildren(): void {
     const { theme } = props
 
     const stats = sessions.reduce(
@@ -77,9 +66,9 @@ export function createDashboard(props: DashboardProps) {
       { running: 0, idle: 0 },
     )
 
-    const headerLine = COLUMNS.map((col) =>
-      col.width === undefined ? col.name : col.name.padEnd(col.width),
-    ).join('  ')
+    const headerLine = COLUMNS.map((col) => col.name.padEnd(col.width)).join(
+      '  ',
+    )
 
     dashboardContainer.clear()
     dashboardContainer.addChild(
@@ -114,22 +103,7 @@ export function createDashboard(props: DashboardProps) {
         ),
         theme.fg(
           'dim',
-          formatUptime(session.startedAt).padEnd(UPTIME_COL.width),
-        ),
-        theme.fg(
-          'muted',
-          session.model
-            ? truncateToWidth(session.model, MODEL_COL.width, '…', true)
-            : '',
-        ),
-        theme.fg(
-          'dim',
-          session.lastEvent
-            ? truncateToWidth(
-                `${session.lastEvent.type}:${session.lastEvent.summary}`,
-                remainingWidth,
-              )
-            : '',
+          formatUptime(session.stateChangedAt).padEnd(UPTIME_COL.width),
         ),
       ].join('  ')
       dashboardContainer.addChild(new Text(line, 0, 0))
@@ -144,7 +118,7 @@ export function createDashboard(props: DashboardProps) {
   const component = {
     render(width: number): string[] {
       if (cachedWidth !== width) {
-        updateChildren(width)
+        updateChildren()
         cachedLines = dashboardContainer.render(width)
         cachedWidth = width
       }

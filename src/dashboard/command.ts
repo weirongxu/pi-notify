@@ -1,12 +1,9 @@
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-
+import { Registrar } from '../shared/registrar.js'
 import { readSessions } from './state-store.js'
 import { createDashboard } from './ui.js'
 
-export class DashboardCommand {
-  constructor(private readonly pi: ExtensionAPI) {}
-
-  register(): void {
+export class DashboardCommand extends Registrar {
+  protected override setup(): void {
     this.pi.registerCommand('notify-dashboard', {
       description: 'Show all pi sessions notify dashboard',
       handler: async (_args, ctx) => {

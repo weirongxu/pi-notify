@@ -15,11 +15,8 @@ export interface SessionRecord {
   cwd: string
   projectName: string
   startedAt: number
-  lastHeartbeatAt: number
   state: 'running' | 'idle'
   stateChangedAt: number
-  model: string | undefined
-  lastEvent: { type: string; summary: string; at: number } | undefined
 }
 
 export interface DashboardState {
@@ -31,7 +28,7 @@ const STATE_FILE = join(getAgentDir(), 'pi-notify', 'state.json')
 const LOCK_FILE = `${STATE_FILE}.lock`
 const LOCK_RETRY_DELAY_MS = 50
 const LOCK_MAX_RETRIES = 20
-const STALE_THRESHOLD_MS = 30000
+const IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000
 
 function ensureStateDir(): void {
   const dir = dirname(STATE_FILE)
@@ -82,7 +79,7 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
-export function readState(options?: { filterStale?: boolean }): DashboardState {
+export function readState(): DashboardState {
   ensureStateDir()
   if (!existsSync(STATE_FILE)) {
     return { version: 1, sessions: {} }
@@ -94,10 +91,6 @@ export function readState(options?: { filterStale?: boolean }): DashboardState {
     state = JSON.parse(data) as DashboardState
   } catch {
     return { version: 1, sessions: {} }
-  }
-
-  if (options?.filterStale === false) {
-    return state
   }
 
   return cleanupStale(state).cleaned
@@ -131,25 +124,27 @@ export async function updateState(
   }
 }
 
-function cleanupStale(
-  state: DashboardState,
-  staleThresholdMs = STALE_THRESHOLD_MS,
-): { cleaned: DashboardState; removedIds: string[] } {
-  const now = Date.now()
+function cleanupStale(state: DashboardState): {
+  cleaned: DashboardState
+  removedIds: string[]
+} {
   const removedIds: string[] = []
   const sessions: Record<string, SessionRecord | undefined> = {}
 
   for (const [id, record] of Object.entries(state.sessions)) {
     if (!record) continue
-    const heartbeatAge = now - record.lastHeartbeatAt
-    const isStale = heartbeatAge > staleThresholdMs
-    const isPidAliveValue = isPidAlive(record.pid)
-
-    if (!isStale && isPidAliveValue) {
-      sessions[id] = record
-    } else {
+    if (!isPidAlive(record.pid)) {
       removedIds.push(id)
+      continue
     }
+    if (
+      record.state === 'idle' &&
+      Date.now() - record.stateChangedAt > IDLE_TIMEOUT_MS
+    ) {
+      removedIds.push(id)
+      continue
+    }
+    sessions[id] = record
   }
 
   return { cleaned: { version: 1, sessions }, removedIds }

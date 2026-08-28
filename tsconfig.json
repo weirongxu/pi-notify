@@ -1,17 +1,38 @@
 {
   "compilerOptions": {
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "declaration": false,
+    "allowJs": true,
+    "lib": ["DOM", "ES2022"],
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    "strict": true,
-    "noUncheckedIndexedAccess": false,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
+    "module": "nodenext",
+    "stripInternal": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "nodenext",
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["node"]
+    "sourceMap": true,
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src",
+    "app/src",
+    "*.ts",
+    "*.tsx",
+    "*.js",
+    "*.jsx",
+    "*.mjs",
+    "app/*.ts",
+    "app/*.tsx",
+    "app/*.js",
+    "app/*.jsx",
+    "app/*.mjs"
+  ]
 }

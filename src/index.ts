@@ -4,13 +4,15 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import { loadConfig } from './config.js'
 import { DashboardCommand } from './dashboard/command.js'
-import { StateTracker } from './dashboard/state-tracker.js'
+import { SessionStore } from './dashboard/session-store.js'
 import { EventsNotifier } from './events.js'
 import { FocusTracker } from './focus.js'
 import { IdleNotifier } from './idle.js'
 import { JobTracker } from './jobs.js'
 import { notify } from './notifier.js'
 import { NotifyTest } from './notify-test.js'
+import type { Registerable } from './shared/types.js'
+import { StateTracker } from './state-tracker.js'
 import { SessionState } from './states.js'
 import { TmuxTitleTracker } from './tmux-title.js'
 import { ToolCallNotifier } from './tool.js'
@@ -28,10 +30,11 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
   const eventsNotifier = new EventsNotifier(pi, config)
   const toolNotifier = new ToolCallNotifier(pi, config)
   const jobTracker = new JobTracker(pi)
-  const idleNotifier = new IdleNotifier(pi, config, jobTracker)
+  const stateTracker = new StateTracker(pi, jobTracker)
+  const idleNotifier = new IdleNotifier(pi, config, stateTracker)
   const notifyTest = new NotifyTest(pi, title, tmuxTitleTracker)
   const sessionState = new SessionState(pi)
-  const stateTracker = new StateTracker(pi)
+  const sessionStore = new SessionStore(pi, stateTracker)
   const dashboardCommand = new DashboardCommand(pi)
 
   function notifyReal(body: string): void {
@@ -48,13 +51,17 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
     notify(title, body)
   }
 
-  tmuxTitleTracker.register()
-  focusTracker.register()
-  jobTracker.register()
-  eventsNotifier.register(notifyReal)
-  toolNotifier.register(notifyReal)
-  idleNotifier.register(notifyReal)
-  notifyTest.register()
-  stateTracker.register()
-  dashboardCommand.register()
+  const registrables: Registerable[] = [
+    tmuxTitleTracker,
+    focusTracker,
+    jobTracker,
+    stateTracker,
+    eventsNotifier,
+    toolNotifier,
+    idleNotifier,
+    sessionStore,
+    notifyTest,
+    dashboardCommand,
+  ]
+  for (const r of registrables) r.register(notifyReal)
 }

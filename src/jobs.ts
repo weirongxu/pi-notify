@@ -1,17 +1,11 @@
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-
-import type { Unsubscribe } from './types.js'
+import { Registrar } from './shared/registrar.js'
 
 export const JOB_START_EVENT = 'pi-notify:job:start'
 export const JOB_END_EVENT = 'pi-notify:job:end'
 
-export class JobTracker {
+export class JobTracker extends Registrar {
   private activeJobs = new Set<string>()
-  private unsubscribes: Unsubscribe[] = []
-  private registered = false
   private onEndListeners: Array<() => void> = []
-
-  constructor(private readonly pi: ExtensionAPI) {}
 
   get hasActiveJobs(): boolean {
     return this.activeJobs.size > 0
@@ -25,10 +19,7 @@ export class JobTracker {
     }
   }
 
-  register(): void {
-    if (this.registered) return
-    this.registered = true
-
+  protected override setup(): void {
     const startUnsub = this.pi.events.on(JOB_START_EVENT, (params) => {
       if (
         typeof params === 'object' &&
@@ -53,18 +44,10 @@ export class JobTracker {
       }
     })
     this.unsubscribes.push(endUnsub)
-
-    this.pi.on('session_shutdown', () => {
-      this.stop()
-    })
   }
 
-  stop(): void {
-    this.unsubscribes.forEach((unsub) => {
-      unsub()
-    })
-    this.unsubscribes = []
+  override stop(): void {
+    super.stop()
     this.activeJobs.clear()
-    this.registered = false
   }
 }

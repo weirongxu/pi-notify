@@ -1,9 +1,11 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 export class SessionState {
+  private readonly pi: ExtensionAPI
   public hasUI = false
 
-  constructor(private readonly pi: ExtensionAPI) {
+  constructor(pi: ExtensionAPI) {
+    this.pi = pi
     this.register()
   }
 

@@ -4,6 +4,8 @@ import { readlinkSync } from 'node:fs'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import type { ResolvedNotifyConfig } from './config.js'
+import { Registrar } from './shared/registrar.js'
+import type { NotifyAction } from './shared/types.js'
 
 const WINDOW_ID_FORMAT = '#{window_id}'
 const WINDOW_NAME_FORMAT = '#{window_name}'
@@ -11,22 +13,24 @@ const LIST_FORMAT = '#{pane_tty}\t#{window_id}'
 const NEWLINE = '\n'
 const TAB = '\t'
 
-export class TmuxTitleTracker {
+export class TmuxTitleTracker extends Registrar {
+  private readonly config: ResolvedNotifyConfig
   private windowId: string | undefined
   private originalTitle: string | undefined
   private autoRename: boolean | undefined
   private modified = false
 
-  constructor(
-    private readonly pi: ExtensionAPI,
-    private readonly config: ResolvedNotifyConfig,
-  ) {}
+  constructor(pi: ExtensionAPI, config: ResolvedNotifyConfig) {
+    super(pi)
+    this.config = config
+  }
 
   get enabled(): boolean {
     return this.config.tmuxSymbol.length > 0
   }
 
-  register(): void {
+  protected override setup(notify: NotifyAction): void {
+    void notify
     this.pi.on('session_start', (_event, ctx) => {
       if (ctx.mode !== 'tui' || !this.enabled) return
       this.restore()
@@ -35,9 +39,6 @@ export class TmuxTitleTracker {
       this.windowId = id
       this.originalTitle = this.queryWindowName(id)
       this.autoRename = this.queryAutomaticRename(id)
-    })
-    this.pi.on('session_shutdown', () => {
-      this.stop()
     })
   }
 
@@ -72,7 +73,8 @@ export class TmuxTitleTracker {
     this.modified = false
   }
 
-  stop(): void {
+  override stop(): void {
+    super.stop()
     this.restore()
     this.windowId = undefined
     this.originalTitle = undefined

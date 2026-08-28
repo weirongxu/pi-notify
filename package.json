@@ -28,12 +28,14 @@
   },
   "main": "./src/index.ts",
   "scripts": {
-    "test": "pnpm run test:types && pnpm run test:lint",
+    "test": "pnpm run test:types && pnpm run test:lint && pnpm run test:unit",
     "test:types": "tsc --noEmit",
-    "test:lint": "eslint --fix ."
+    "test:lint": "eslint --fix .",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@earendil-works/pi-tui": "0.80.7",
+    "emittery": "^2.0.0",
     "node-notifier": "^10.0.1"
   },
   "peerDependencies": {
@@ -44,6 +46,7 @@
     "@types/node": "^22.0.0",
     "eslint": "^10.7.0",
     "prettier": "^3.9.5",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.11"
   }
 }

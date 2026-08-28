@@ -1,52 +1,37 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import type { ResolvedNotifyConfig } from './config.js'
-import type { JobTracker } from './jobs.js'
-import type { NotifyAction } from './types.js'
+import { Registrar } from './shared/registrar.js'
+import type { NotifyAction } from './shared/types.js'
+import type { StateTracker } from './state-tracker.js'
 
-const IDLE_TIMEOUT_MS = 10000
-
-export class IdleNotifier {
-  private timer: NodeJS.Timeout | null = null
+export class IdleNotifier extends Registrar {
+  private readonly config: ResolvedNotifyConfig
+  private readonly stateTracker: StateTracker
+  private hasActivity = false
 
   constructor(
-    private readonly pi: ExtensionAPI,
-    private readonly config: ResolvedNotifyConfig,
-    private readonly jobTracker: JobTracker,
-  ) {}
-
-  clearIdleTimer(): void {
-    if (this.timer) {
-      clearTimeout(this.timer)
-      this.timer = null
-    }
-  }
-  startIdleTimer(notify: NotifyAction): void {
-    this.clearIdleTimer()
-    this.timer = setTimeout(() => {
-      this.clearIdleTimer()
-      notify('Idle')
-    }, IDLE_TIMEOUT_MS)
+    pi: ExtensionAPI,
+    config: ResolvedNotifyConfig,
+    stateTracker: StateTracker,
+  ) {
+    super(pi)
+    this.config = config
+    this.stateTracker = stateTracker
   }
 
-  register(notify: NotifyAction): void {
+  protected override setup(notify: NotifyAction): void {
     if (!this.config.finished) return
 
     this.pi.on('turn_start', () => {
-      this.clearIdleTimer()
+      this.hasActivity = true
     })
 
-    this.pi.on('message_start', () => {
-      this.clearIdleTimer()
-    })
-
-    this.pi.on('agent_settled', () => {
-      if (this.jobTracker.hasActiveJobs) return
-      this.startIdleTimer(notify)
-    })
-
-    this.jobTracker.onEnd(() => {
-      this.startIdleTimer(notify)
-    })
+    this.unsubscribes.push(
+      this.stateTracker.events.on('idle', () => {
+        if (!this.hasActivity) return
+        notify('Idle')
+      }),
+    )
   }
 }
