@@ -46,7 +46,8 @@ export class FocusTracker extends Registrar {
           this._lastActivityAt = Date.now()
           const result = this.consume(data)
           if (result.gainedFocus) this.titleTracker.restore()
-          return result.data === data ? undefined : { data: result.data }
+          if (result.data !== data) return { consume: true }
+          return undefined
         }),
       )
     })

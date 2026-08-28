@@ -12,13 +12,14 @@ import {
 import type { SessionRecord } from './state-store.js'
 
 const COLUMNS = [
+  { name: 'SESSION_ID', width: 8 },
   { name: 'PID', width: 8 },
   { name: 'STATE', width: 8 },
   { name: 'PROJECT', width: 15 },
   { name: 'UPTIME', width: 10 },
 ] as const
 
-const [PID_COL, STATE_COL, PROJECT_COL, UPTIME_COL] = COLUMNS
+const [SESSION_ID_COL, PID_COL, STATE_COL, PROJECT_COL, UPTIME_COL] = COLUMNS
 
 const MAX_ROWS = Math.max(1, (process.stdout.rows || 20) - 6)
 
@@ -28,6 +29,7 @@ export interface DashboardProps {
   initialSessions: SessionRecord[]
   onRefresh: () => Promise<SessionRecord[]>
   onClose: () => void
+  onDispose?: () => void
 }
 
 function formatUptime(startedAt: number): string {
@@ -52,8 +54,25 @@ export function createDashboard(props: DashboardProps) {
   let scrollOffset = 0
   let cachedWidth: number | null = null
   let cachedLines: string[] = []
+  let disposed = false
 
   const dashboardContainer = new Container()
+
+  function refresh(): void {
+    props
+      .onRefresh()
+      .then((newSessions) => {
+        sessions = [...newSessions]
+        scrollOffset = 0
+        cachedWidth = null
+        props.tui.requestRender()
+      })
+      .catch(() => {})
+  }
+
+  const timer = setInterval(() => {
+    if (!disposed) refresh()
+  }, 1000)
 
   function updateChildren(): void {
     const { theme } = props
@@ -95,6 +114,10 @@ export function createDashboard(props: DashboardProps) {
     )) {
       const stateColor = session.state === 'running' ? 'success' : 'muted'
       const line = [
+        theme.fg(
+          'dim',
+          session.sessionId.slice(-6).padEnd(SESSION_ID_COL.width),
+        ),
         theme.fg('dim', String(session.pid).padEnd(PID_COL.width)),
         theme.fg(stateColor, session.state.padEnd(STATE_COL.width)),
         theme.fg(
@@ -127,15 +150,7 @@ export function createDashboard(props: DashboardProps) {
 
     handleInput(data: string): void {
       if (matchesKey(data, 'r')) {
-        props
-          .onRefresh()
-          .then((newSessions) => {
-            sessions = [...newSessions]
-            scrollOffset = 0
-            cachedWidth = null
-            props.tui.requestRender()
-          })
-          .catch(() => {})
+        refresh()
         return
       }
 
@@ -165,6 +180,12 @@ export function createDashboard(props: DashboardProps) {
     invalidate(): void {
       cachedWidth = null
       dashboardContainer.invalidate()
+    },
+
+    dispose(): void {
+      disposed = true
+      clearInterval(timer)
+      props.onDispose?.()
     },
   }
 

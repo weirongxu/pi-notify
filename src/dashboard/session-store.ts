@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { basename } from 'node:path'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
@@ -26,8 +27,9 @@ export class SessionStore extends Registrar {
     if (this.sessionId === undefined || this.meta === undefined) return
 
     const now = Date.now()
-    const id = this.sessionId
     const meta = this.meta
+    const sessionId = this.sessionId
+    const id = String(meta.pid)
 
     await updateState((state) => {
       const existing = state.sessions[id]
@@ -35,6 +37,7 @@ export class SessionStore extends Registrar {
 
       const record: SessionRecord = {
         pid: meta.pid,
+        sessionId,
         cwd: meta.cwd,
         projectName: meta.projectName,
         startedAt: existing?.startedAt ?? now,
@@ -51,10 +54,16 @@ export class SessionStore extends Registrar {
 
   protected override setup(): void {
     this.pi.on('session_start', (_event, ctx) => {
+      let normalizedCwd = ctx.cwd
+      try {
+        normalizedCwd = realpathSync(ctx.cwd)
+      } catch {
+        // Use original path if realpathSync fails
+      }
       const meta = {
         pid: process.pid,
-        cwd: ctx.cwd,
-        projectName: basename(ctx.cwd),
+        cwd: normalizedCwd,
+        projectName: basename(normalizedCwd),
       }
       const sessionId = ctx.sessionManager.getSessionId()
       this.sessionId = sessionId
