@@ -126,7 +126,7 @@ export function createDashboard(props: DashboardProps) {
         ),
         theme.fg(
           'dim',
-          formatUptime(session.stateChangedAt).padEnd(UPTIME_COL.width),
+          formatUptime(session.startedAt).padEnd(UPTIME_COL.width),
         ),
       ].join('  ')
       dashboardContainer.addChild(new Text(line, 0, 0))

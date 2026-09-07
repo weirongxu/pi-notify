@@ -72,11 +72,11 @@ export class SessionStore extends Registrar {
     })
 
     this.unsubscribes.push(
-      this.stateTracker.events.on('running', () => {
-        void this.saveSession({ state: 'running' })
+      this.stateTracker.events.on('running', async () => {
+        await this.saveSession({ state: 'running' })
       }),
-      this.stateTracker.events.on('idle', () => {
-        void this.saveSession({ state: 'idle' })
+      this.stateTracker.events.on('idle', async () => {
+        await this.saveSession({ state: 'idle' })
       }),
     )
   }

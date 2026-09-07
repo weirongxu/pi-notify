@@ -3,8 +3,9 @@ import { join } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
+// `false` disables the event
 interface NotifyEventsConfig {
-  readonly [channel: string]: string
+  readonly [channel: string]: string | false
 }
 
 interface NotifyConfig {

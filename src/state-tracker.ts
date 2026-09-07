@@ -14,6 +14,7 @@ export class StateTracker extends Registrar {
 
   private readonly jobTracker: JobTracker
   private idleTimer: NodeJS.Timeout | null = null
+  private running = false
 
   constructor(pi: ExtensionAPI, jobTracker: JobTracker) {
     super(pi)
@@ -25,6 +26,7 @@ export class StateTracker extends Registrar {
     this.clearIdleTimer()
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null
+      this.running = false
       void this.events.emit('idle')
     }, IDLE_TIMEOUT_MS)
   }
@@ -36,8 +38,15 @@ export class StateTracker extends Registrar {
     }
   }
 
+  private markRunning(): void {
+    if (this.running) return
+    this.running = true
+    void this.events.emit('running')
+  }
+
   protected override setup(): void {
     this.pi.on('turn_start', () => {
+      this.markRunning()
       this.clearIdleTimer()
     })
 

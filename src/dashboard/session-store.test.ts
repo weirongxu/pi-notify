@@ -1,8 +1,13 @@
+import { unlinkSync } from 'node:fs'
+import { join } from 'node:path'
+
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { describe, expect, it, vi } from 'vitest'
+import { getAgentDir } from '@earendil-works/pi-coding-agent'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StateTracker } from '../state-tracker.js'
 import { SessionStore } from './session-store.js'
+import { readState, updateState } from './state-store.js'
 
 type EventsListener = (payload: unknown) => void
 
@@ -104,12 +109,30 @@ function makeFakeStateTracker(): FakeStateTracker {
 
 const SESSION_ID = 'test-session-123'
 const META = {
-  pid: 12345,
   cwd: '/test/project',
   projectName: 'test-project',
 }
 
 describe('SessionStore', () => {
+  const testLockFile = join(getAgentDir(), 'pi-notify-test', 'state.json.lock')
+
+  beforeEach(async () => {
+    try {
+      unlinkSync(testLockFile)
+    } catch {
+      // ignore
+    }
+    await updateState(() => ({ version: 1, sessions: {} }))
+  })
+
+  afterEach(() => {
+    try {
+      unlinkSync(testLockFile)
+    } catch {
+      // ignore
+    }
+  })
+
   it('creates instance and registers event listeners', () => {
     const pi = makeFakePi()
     const stateTracker = makeFakeStateTracker()
@@ -214,6 +237,35 @@ describe('SessionStore', () => {
     expect(() => {
       stateTracker.events.emit('idle')
     }).not.toThrow()
+  })
+
+  it('writes running and idle states to state.json', async () => {
+    const pi = makeFakePi()
+    const stateTracker = makeFakeStateTracker()
+
+    const store = new SessionStore(
+      pi as unknown as ExtensionAPI,
+      stateTracker as unknown as StateTracker,
+    )
+    store.register(() => {})
+
+    pi.emitSessionStart({
+      cwd: META.cwd,
+      sessionManager: { getSessionId: () => SESSION_ID },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    stateTracker.events.emit('running')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    let record = readState().sessions[String(process.pid)]
+    expect(record?.state).toBe('running')
+
+    stateTracker.events.emit('idle')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    record = readState().sessions[String(process.pid)]
+    expect(record?.state).toBe('idle')
   })
 
   it('stops without errors after session started', () => {

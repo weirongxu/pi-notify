@@ -10,11 +10,33 @@ A notification extension for the [pi](https://github.com/earendil-works/pi-codin
 pi install npm:@raidou/pi-notify
 ```
 
-Or, for local development, add the repo path to your `~/.pi/agent/settings.json`:
+Or, for local development
+
+```bash
+cd path/to/pi-notify
+pi install .
+```
+
+## Configuration
+
+All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everything is optional.
 
 ```jsonc
 {
-  "extensions": ["/absolute/path/to/pi-notify"],
+  "piNotify": {
+    "enabled": true, // master on/off switch (default: true)
+    "notifyTools": ["ask_user", "ask_user_question"], // tools that trigger "Tool call" notifications
+    "tmuxSymbol": "🔔", // symbol appended to tmux window title (empty string to disable)
+    "finished": true, // enable/disable "Idle" notification
+    "events": {
+      "permissions:ui_prompt": "Permission prompt", // custom event channel -> notification message
+      "my:custom:event": "Custom event triggered", // add your own custom events
+      "other:event": false, // set to false to disable a specific event
+    },
+    "finishedThrottleSecs": 0, // 0 = always notify; >0 = skip finished toasts for runs shorter than N seconds
+    "onlyNotifyWhenUnfocused": true, // only notify when user has been inactive
+    "unfocusedActivityThresholdSecs": 30, // seconds of inactivity before considering user "unfocused"
+  },
 }
 ```
 
@@ -43,42 +65,6 @@ function endBackgroundJob(jobId: string): void {
 ```
 
 Events are automatically cleaned up on `session_shutdown`.
-
-## Configuration
-
-All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everything is optional.
-
-```jsonc
-{
-  "piNotify": {
-    "enabled": true, // master on/off switch (default: true)
-    "notifyTools": ["ask_user", "ask_user_question"], // tools that trigger "Tool call" notifications
-    "tmuxSymbol": "🔔", // symbol appended to tmux window title (empty string to disable)
-    "finished": true, // enable/disable "Idle" notification
-    "events": {
-      "permissions:ui_prompt": "Permission prompt", // custom event channel -> notification message
-      "my:custom:event": "Custom event triggered", // add your own custom events
-    },
-    "finishedThrottleSecs": 0, // 0 = always notify; >0 = skip finished toasts for runs shorter than N seconds
-    "onlyNotifyWhenUnfocused": true, // only notify when user has been inactive
-    "unfocusedActivityThresholdSecs": 30, // seconds of inactivity before considering user "unfocused"
-  },
-}
-```
-
-### Disabling specific events
-
-To disable a specific event, set its message to an empty string:
-
-```jsonc
-{
-  "piNotify": {
-    "events": {
-      "permissions:ui_prompt": "", // disable permission notifications
-    },
-  },
-}
-```
 
 ## Testing
 

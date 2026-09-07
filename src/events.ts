@@ -16,7 +16,7 @@ export class EventsNotifier extends Registrar {
 
   protected override setup(notify: NotifyAction): void {
     for (const [channel, message] of Object.entries(this.config.events)) {
-      if (!message) continue
+      if (typeof message !== 'string' || message === '') continue
       const unsubscribe = this.pi.events.on(channel, () => {
         notify(message)
       })

@@ -3,8 +3,8 @@
   "version": "0.3.1",
   "description": "Desktop notification extension for the pi coding agent.",
   "keywords": [
-    "pi-package",
     "pi",
+    "pi-package",
     "pi-extension",
     "pi-coding-agent",
     "notifications",
