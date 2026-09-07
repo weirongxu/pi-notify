@@ -66,7 +66,21 @@ function endBackgroundJob(jobId: string): void {
 
 Events are automatically cleaned up on `session_shutdown`.
 
-## Testing
+## Commands
+
+### `/notify-dashboard`
+
+Open a full-screen TUI dashboard listing all pi sessions, with summary counts (total, running, idle) and an auto-refresh every second.
+
+Columns: `SESSION_ID` (last 6 chars), `PID`, `STATE` (running/idle, color-coded), `PROJECT`, `UPTIME`.
+
+Keybindings:
+
+- `↑` / `↓` or `j` / `k` — scroll
+- `r` — refresh
+- `q` or `esc` — close
+
+### `/notify-test`
 
 Run `/notify-test` inside pi to fire a test notification.
 Pass a string argument (e.g., `/notify-test hello`) to override the body.
