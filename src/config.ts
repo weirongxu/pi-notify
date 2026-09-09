@@ -13,7 +13,6 @@ interface NotifyConfig {
   readonly notifyTools?: readonly string[]
   readonly events?: NotifyEventsConfig
   readonly finished?: boolean
-  readonly finishedThrottleSecs?: number
   readonly onlyNotifyWhenUnfocused?: boolean
   readonly unfocusedActivityThresholdSecs?: number
   readonly tmuxSymbol?: string
@@ -24,7 +23,6 @@ export interface ResolvedNotifyConfig {
   readonly notifyTools: ReadonlySet<string>
   readonly events: NotifyEventsConfig
   readonly finished: boolean
-  readonly finishedThrottleMs: number
   readonly onlyNotifyWhenUnfocused: boolean
   readonly unfocusedActivityThresholdMs: number
   readonly tmuxSymbol: string
@@ -67,7 +65,6 @@ export function loadConfig(): ResolvedNotifyConfig {
     notifyTools: new Set(cfg.notifyTools ?? DEFAULT_NOTIFY_TOOLS),
     events,
     finished: cfg.finished ?? true,
-    finishedThrottleMs: Math.max(0, (cfg.finishedThrottleSecs ?? 0) * 1000),
     onlyNotifyWhenUnfocused: cfg.onlyNotifyWhenUnfocused ?? true,
     unfocusedActivityThresholdMs: Math.max(
       0,

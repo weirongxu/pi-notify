@@ -1,10 +1,89 @@
-import { unlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
-import { getAgentDir } from '@earendil-works/pi-coding-agent'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
-import { isProcessAlive, readSessions, updateState } from './state-store.js'
+vi.mock('./consts.js', async () => {
+  const { mkdtempSync } = await import('node:fs')
+  const path = await import('node:path')
+  const { tmpdir } = await import('node:os')
+
+  const stateDir = mkdtempSync(path.join(tmpdir(), 'pi-notify-test-'))
+  return {
+    STATE_FILE: path.join(stateDir, 'state.json'),
+    STATE_TMP_FILE: path.join(stateDir, 'state.json.tmp'),
+  }
+})
+
+afterAll(() => {
+  rmSync(dirname(STATE_FILE), { recursive: true, force: true })
+})
+
+import { STATE_FILE } from './consts.js'
+import {
+  isProcessAlive,
+  readSessions,
+  readState,
+  updateState,
+} from './state-store.js'
+
+describe('readState', () => {
+  const testLockFile = `${STATE_FILE}.lock`
+
+  afterEach(() => {
+    try {
+      unlinkSync(testLockFile)
+      unlinkSync(STATE_FILE)
+    } catch {
+      // ignore
+    }
+  })
+
+  it('writes state with version 2', async () => {
+    await updateState((state) => ({ ...state, sessions: {} }))
+    expect(readState().version).toBe(2)
+  })
+
+  it('reads v1 records as-is with absent v2 fields', () => {
+    const record = {
+      pid: process.pid,
+      sessionId: 'v1-session',
+      cwd: process.cwd(),
+      projectName: 'v1-project',
+      startedAt: Date.now(),
+      state: 'idle',
+    }
+    writeFileSync(
+      STATE_FILE,
+      JSON.stringify({
+        version: 1,
+        sessions: { [String(process.pid)]: record },
+      }),
+      'utf8',
+    )
+
+    const state = readState()
+    expect(state.version).toBe(2)
+    expect(state.sessions[String(process.pid)]).toEqual(record)
+  })
+
+  it('drops malformed session records instead of crashing', () => {
+    writeFileSync(
+      STATE_FILE,
+      JSON.stringify({ version: 2, sessions: { x: null } }),
+      'utf8',
+    )
+    expect(readState().sessions).toEqual({ x: undefined })
+  })
+})
 
 describe('isProcessAlive', () => {
   it('returns true for current process pid', () => {
@@ -52,8 +131,7 @@ describe('isProcessAlive', () => {
 })
 
 describe('readSessions', () => {
-  const testDir = join(getAgentDir(), 'pi-notify-test')
-  const testLockFile = join(testDir, 'state.json.lock')
+  const testLockFile = `${STATE_FILE}.lock`
 
   beforeEach(async () => {
     try {
@@ -61,7 +139,7 @@ describe('readSessions', () => {
     } catch {
       // ignore
     }
-    await updateState(() => ({ version: 1, sessions: {} }))
+    await updateState(() => ({ version: 2, sessions: {} }))
   })
 
   afterEach(() => {
@@ -90,7 +168,6 @@ describe('readSessions', () => {
           projectName: 'alive-project',
           startedAt: Date.now(),
           state: 'running',
-          stateChangedAt: Date.now(),
         },
         [deadKey]: {
           pid: deadPid,
@@ -99,7 +176,6 @@ describe('readSessions', () => {
           projectName: 'dead-project',
           startedAt: Date.now(),
           state: 'running',
-          stateChangedAt: Date.now(),
         },
       },
     }))
@@ -128,7 +204,6 @@ describe('readSessions', () => {
           projectName: 'test-project',
           startedAt: Date.now(),
           state: 'running',
-          stateChangedAt: Date.now(),
         },
       },
     }))
@@ -140,8 +215,7 @@ describe('readSessions', () => {
 })
 
 describe('updateState', () => {
-  const testDir = join(getAgentDir(), 'pi-notify-test')
-  const testLockFile = join(testDir, 'state.json.lock')
+  const testLockFile = `${STATE_FILE}.lock`
 
   beforeEach(() => {
     try {
@@ -171,7 +245,6 @@ describe('updateState', () => {
           projectName: 'test-project',
           startedAt: Date.now(),
           state: 'running',
-          stateChangedAt: Date.now(),
         },
       },
     }))
@@ -191,7 +264,6 @@ describe('updateState', () => {
           projectName: 'concurrent-test',
           startedAt: Date.now(),
           state: 'running',
-          stateChangedAt: Date.now(),
         },
       },
     }))
@@ -204,7 +276,7 @@ describe('updateState', () => {
           [sessionId]: state.sessions[sessionId]
             ? {
                 ...state.sessions[sessionId],
-                stateChangedAt: Date.now(),
+                startedAt: Date.now(),
               }
             : undefined,
         },
@@ -216,7 +288,7 @@ describe('updateState', () => {
           [sessionId]: state.sessions[sessionId]
             ? {
                 ...state.sessions[sessionId],
-                stateChangedAt: Date.now() + 1,
+                startedAt: Date.now() + 1,
               }
             : undefined,
         },

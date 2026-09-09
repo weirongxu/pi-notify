@@ -5,12 +5,8 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import { Registrar } from '../shared/registrar.js'
 import type { StateTracker } from '../state-tracker.js'
-import type { SessionRecord } from './state-store.js'
+import type { SessionRecord, SessionState } from './state-store.js'
 import { updateState } from './state-store.js'
-
-export interface SessionUpdate {
-  state: 'running' | 'idle'
-}
 
 export class SessionStore extends Registrar {
   private readonly stateTracker: StateTracker
@@ -23,7 +19,7 @@ export class SessionStore extends Registrar {
     this.stateTracker = stateTracker
   }
 
-  private async saveSession(updates: SessionUpdate): Promise<void> {
+  private async saveSession(nextState: SessionState): Promise<void> {
     if (this.sessionId === undefined || this.meta === undefined) return
 
     const now = Date.now()
@@ -33,7 +29,9 @@ export class SessionStore extends Registrar {
 
     await updateState((state) => {
       const existing = state.sessions[id]
-      const stateChanged = updates.state !== existing?.state
+      const isRunning = nextState === 'running'
+
+      const startRunningAt = isRunning ? now : undefined
 
       const record: SessionRecord = {
         pid: meta.pid,
@@ -41,8 +39,8 @@ export class SessionStore extends Registrar {
         cwd: meta.cwd,
         projectName: meta.projectName,
         startedAt: existing?.startedAt ?? now,
-        state: updates.state,
-        stateChangedAt: stateChanged ? now : existing.stateChangedAt,
+        state: nextState,
+        startedRunningAt: startRunningAt,
       }
 
       return {
@@ -68,15 +66,21 @@ export class SessionStore extends Registrar {
       const sessionId = ctx.sessionManager.getSessionId()
       this.sessionId = sessionId
       this.meta = meta
-      void this.saveSession({ state: 'idle' })
+      void this.saveSession('idle')
     })
 
     this.unsubscribes.push(
       this.stateTracker.events.on('running', async () => {
-        await this.saveSession({ state: 'running' })
+        await this.saveSession('running')
       }),
       this.stateTracker.events.on('idle', async () => {
-        await this.saveSession({ state: 'idle' })
+        await this.saveSession('idle')
+      }),
+      this.stateTracker.events.on('tool', async ({ data }) => {
+        await this.saveSession(`tool_call:${data}`)
+      }),
+      this.stateTracker.events.on('event', async ({ data }) => {
+        await this.saveSession(`event:${data}`)
       }),
     )
   }

@@ -5,10 +5,12 @@ import {
   renameSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname } from 'node:path'
 
-import { getAgentDir } from '@earendil-works/pi-coding-agent'
+import { omit, partition } from 'lodash-es'
 import lockfile from 'proper-lockfile'
+
+import { STATE_FILE, STATE_TMP_FILE } from './consts.js'
 
 const ESRCH = 'ESRCH'
 const EPERM = 'EPERM'
@@ -32,32 +34,27 @@ export function isProcessAlive(pid: number): boolean {
 
 export async function readSessions(): Promise<SessionRecord[]> {
   const state = readState()
-  const deadIds: string[] = []
-  const alive: SessionRecord[] = []
+  const sessions = Object.values(state.sessions).filter(
+    (session): session is SessionRecord => session !== undefined,
+  )
+  const [alive, dead] = partition(sessions, (session) =>
+    isProcessAlive(session.pid),
+  )
 
-  for (const session of Object.values(state.sessions)) {
-    if (!session) continue
-    if (isProcessAlive(session.pid)) {
-      alive.push(session)
-    } else {
-      deadIds.push(String(session.pid))
-    }
-  }
+  const deadIds = dead.map((session) => String(session.pid))
 
   if (deadIds.length === 0) return alive
 
   await updateState((s) => {
-    const sessions: typeof s.sessions = {}
-    for (const key of Object.keys(s.sessions)) {
-      if (!deadIds.includes(key)) {
-        sessions[key] = s.sessions[key]
-      }
-    }
+    const sessions: typeof s.sessions = omit(s.sessions, deadIds)
     return { ...s, sessions }
   })
 
   return alive
 }
+
+export type SessionState =
+  'running' | 'idle' | `tool_call:${string}` | `event:${string}`
 
 export interface SessionRecord {
   pid: number
@@ -65,16 +62,15 @@ export interface SessionRecord {
   cwd: string
   projectName: string
   startedAt: number
-  state: 'running' | 'idle'
-  stateChangedAt: number
+  state: SessionState
+  startedRunningAt?: number
 }
 
 export interface DashboardState {
-  version: 1
+  version: 2
   sessions: Record<string, SessionRecord | undefined>
 }
 
-const STATE_FILE = join(getAgentDir(), 'pi-notify', 'state.json')
 const LOCK_RETRY_INTERVAL_MS = 50
 const LOCK_MAX_RETRIES = 20
 
@@ -85,24 +81,85 @@ function ensureStateDir(): void {
   }
 }
 
+ensureStateDir()
+
+function parseSessionRecord(value: unknown): SessionRecord | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const record = value as Record<string, unknown>
+  if (
+    typeof record.pid !== 'number' ||
+    typeof record.sessionId !== 'string' ||
+    typeof record.cwd !== 'string' ||
+    typeof record.projectName !== 'string' ||
+    typeof record.startedAt !== 'number' ||
+    !isSessionState(record.state)
+  ) {
+    return undefined
+  }
+  return {
+    pid: record.pid,
+    sessionId: record.sessionId,
+    cwd: record.cwd,
+    projectName: record.projectName,
+    startedAt: record.startedAt,
+    state: record.state,
+    startedRunningAt:
+      typeof record.startedRunningAt === 'number'
+        ? record.startedRunningAt
+        : undefined,
+  }
+}
+
+function isActivityState(
+  value: string,
+): value is `tool_call:${string}` | `event:${string}` {
+  return value.startsWith('tool_call:') || value.startsWith('event:')
+}
+
+function isSessionState(value: unknown): value is SessionState {
+  return (
+    value === 'running' ||
+    value === 'idle' ||
+    (typeof value === 'string' && isActivityState(value))
+  )
+}
+
+function parseState(data: string): DashboardState | undefined {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    return undefined
+  }
+  if (typeof parsed !== 'object' || parsed === null) return undefined
+  const raw = parsed as Record<string, unknown>
+  if (typeof raw.sessions !== 'object' || raw.sessions === null)
+    return undefined
+
+  const sessions: Record<string, SessionRecord | undefined> = {}
+  for (const [key, value] of Object.entries(raw.sessions)) {
+    sessions[key] = parseSessionRecord(value)
+  }
+  // Records from earlier versions without optional fields parse as-is.
+  return { version: 2, sessions }
+}
+
 export function readState(): DashboardState {
   if (!existsSync(STATE_FILE)) {
-    return { version: 1, sessions: {} }
+    return { version: 2, sessions: {} }
   }
 
   try {
-    const data = readFileSync(STATE_FILE, 'utf8')
-    return JSON.parse(data) as DashboardState
+    const state = parseState(readFileSync(STATE_FILE, 'utf8'))
+    return state ?? { version: 2, sessions: {} }
   } catch {
-    return { version: 1, sessions: {} }
+    return { version: 2, sessions: {} }
   }
 }
 
 export async function updateState(
   mutator: (state: DashboardState) => DashboardState,
 ): Promise<void> {
-  ensureStateDir()
-
   const release = await lockfile.lock(STATE_FILE, {
     realpath: false,
     stale: 30000,
@@ -116,9 +173,8 @@ export async function updateState(
   try {
     const state = readState()
     const newState = mutator(state)
-    const tmpFile = `${STATE_FILE}.tmp`
-    writeFileSync(tmpFile, JSON.stringify(newState, null, 2), 'utf8')
-    renameSync(tmpFile, STATE_FILE)
+    writeFileSync(STATE_TMP_FILE, JSON.stringify(newState, null, 2), 'utf8')
+    renameSync(STATE_TMP_FILE, STATE_FILE)
   } finally {
     await release()
   }

@@ -1,19 +1,27 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ResolvedNotifyConfig } from './config.js'
 import type { JobTracker } from './jobs.js'
-import { StateTracker } from './state-tracker.js'
+import { PI_NOTIFY_EVENT, StateTracker } from './state-tracker.js'
+
+type EventsListener = (payload?: unknown) => void
 
 interface FakePi {
-  listeners: Map<string, Set<() => void>>
-  on(event: string, listener: () => void): void
-  emit(event: string): void
+  listeners: Map<string, Set<(payload?: unknown) => void>>
+  eventListeners: Map<string, Set<EventsListener>>
+  on(event: string, listener: (payload?: unknown) => void): void
+  events: { on(event: string, listener: EventsListener): () => void }
+  emit(event: string, payload?: unknown): void
+  emitEvent(event: string, payload?: unknown): void
 }
 
 function makeFakePi(): FakePi {
-  const listeners = new Map<string, Set<() => void>>()
+  const listeners = new Map<string, Set<(payload?: unknown) => void>>()
+  const eventListeners = new Map<string, Set<EventsListener>>()
   return {
     listeners,
+    eventListeners,
     on(event, listener) {
       let set = listeners.get(event)
       if (!set) {
@@ -22,10 +30,28 @@ function makeFakePi(): FakePi {
       }
       set.add(listener)
     },
-    emit(event) {
+    events: {
+      on(event, listener) {
+        let set = eventListeners.get(event)
+        if (!set) {
+          set = new Set()
+          eventListeners.set(event, set)
+        }
+        set.add(listener)
+        return () => {
+          set.delete(listener)
+        }
+      },
+    },
+    emit(event, payload) {
       const set = listeners.get(event)
       if (!set) return
-      for (const listener of [...set]) listener()
+      for (const listener of [...set]) listener(payload)
+    },
+    emitEvent(event, payload) {
+      const set = eventListeners.get(event)
+      if (!set) return
+      for (const listener of [...set]) listener(payload)
     },
   }
 }
@@ -41,23 +67,42 @@ async function flush(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve()
 }
 
-function makeTracker(pi: FakePi): {
+const BASE_CONFIG: ResolvedNotifyConfig = {
+  enabled: true,
+  notifyTools: new Set(['bash', 'read']),
+  events: {
+    'permissions:ui_prompt': 'msg',
+    'disabled:channel': false,
+  },
+  finished: true,
+  onlyNotifyWhenUnfocused: true,
+  unfocusedActivityThresholdMs: 0,
+  tmuxSymbol: '',
+} as unknown as ResolvedNotifyConfig
+
+function makeTracker(
+  pi: FakePi,
+  config: ResolvedNotifyConfig = BASE_CONFIG,
+): {
   tracker: StateTracker
   states: string[]
+  bodies: string[]
 } {
   const states: string[] = []
+  const bodies: string[] = []
   const tracker = new StateTracker(
     pi as unknown as ExtensionAPI,
     makeFakeJobTracker(),
+    config,
   )
-  tracker.register(() => {})
+  tracker.register((body) => bodies.push(body))
   tracker.events.on('running', () => {
     states.push('running')
   })
   tracker.events.on('idle', () => {
     states.push('idle')
   })
-  return { tracker, states }
+  return { tracker, states, bodies }
 }
 
 describe('StateTracker', () => {
@@ -99,12 +144,72 @@ describe('StateTracker', () => {
 
     pi.emit('turn_start')
     pi.emit('message_start')
-    pi.emit('tool_call')
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't1',
+      toolName: 'read',
+    })
     pi.emit('turn_start')
 
     await flush()
 
     expect(states).toEqual(['running'])
+  })
+
+  it('emits tool only for tools in notifyTools', async () => {
+    const pi = makeFakePi()
+    const { tracker } = makeTracker(pi)
+    const tools: string[] = []
+    tracker.events.on('tool', (event) => {
+      tools.push(event.data)
+    })
+
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't1',
+      toolName: 'bash',
+    })
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't2',
+      toolName: 'grep',
+    })
+
+    await flush()
+
+    expect(tools).toEqual(['bash'])
+  })
+
+  it('emits event for configured channels and not for disabled ones', async () => {
+    const pi = makeFakePi()
+    const { tracker } = makeTracker(pi)
+    const events: string[] = []
+    tracker.events.on('event', (event) => {
+      events.push(event.data)
+    })
+
+    pi.emitEvent('permissions:ui_prompt', {})
+    pi.emitEvent('disabled:channel', {})
+
+    await flush()
+
+    expect(events).toEqual(['permissions:ui_prompt'])
+  })
+
+  it('unsubscribes from channel events on stop', async () => {
+    const pi = makeFakePi()
+    const { tracker } = makeTracker(pi)
+    const events: string[] = []
+    tracker.events.on('event', (event) => {
+      events.push(event.data)
+    })
+
+    tracker.stop()
+    pi.emitEvent('permissions:ui_prompt', {})
+
+    await flush()
+
+    expect(events).toEqual([])
   })
 
   it('emits running again after becoming idle', async () => {
@@ -121,6 +226,112 @@ describe('StateTracker', () => {
     expect(states).toEqual(['running', 'idle', 'running'])
   })
 
+  it('notifies with the configured message when a custom event fires', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emitEvent('permissions:ui_prompt', {})
+
+    expect(bodies).toEqual(['msg'])
+  })
+
+  it('does not notify for events disabled with false', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emitEvent('disabled:channel', {})
+
+    expect(bodies).toEqual([])
+  })
+
+  it('does not notify for events disabled with an empty string', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi, {
+      ...BASE_CONFIG,
+      events: { 'my:custom:event': '' },
+    })
+
+    pi.emitEvent('my:custom:event', {})
+
+    expect(bodies).toEqual([])
+  })
+
+  it('notifies from the custom channel', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emitEvent(PI_NOTIFY_EVENT, 'custom payload')
+
+    expect(bodies).toEqual(['custom payload'])
+  })
+
+  it('notifies for tools in notifyTools', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't1',
+      toolName: 'read',
+    })
+
+    expect(bodies).toEqual(['Tool call: read'])
+  })
+
+  it('does not notify for tools not in notifyTools', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't1',
+      toolName: 'grep',
+    })
+
+    expect(bodies).toEqual([])
+  })
+
+  it('notifies Idle on idle when there was activity', async () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emit('turn_start')
+    pi.emit('agent_settled')
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(bodies).toEqual(['Idle'])
+  })
+
+  it('does not notify Idle on idle without activity', async () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emit('agent_settled')
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(bodies).toEqual([])
+  })
+
+  it('does not notify Idle when finished is disabled', async () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi, {
+      ...BASE_CONFIG,
+      finished: false,
+    })
+
+    pi.emit('turn_start')
+    pi.emit('agent_settled')
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(bodies).toEqual([])
+  })
+
   it('resets the idle timer on activity', async () => {
     const pi = makeFakePi()
     const { states } = makeTracker(pi)
@@ -128,7 +339,11 @@ describe('StateTracker', () => {
     pi.emit('turn_start')
     pi.emit('agent_settled')
     vi.advanceTimersByTime(9000)
-    pi.emit('tool_call')
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't2',
+      toolName: 'bash',
+    })
     vi.advanceTimersByTime(9000)
 
     await flush()

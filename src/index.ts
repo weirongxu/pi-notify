@@ -5,9 +5,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { loadConfig } from './config.js'
 import { DashboardCommand } from './dashboard/command.js'
 import { SessionStore } from './dashboard/session-store.js'
-import { EventsNotifier } from './events.js'
 import { FocusTracker } from './focus.js'
-import { IdleNotifier } from './idle.js'
 import { JobTracker } from './jobs.js'
 import { notify } from './notifier.js'
 import { NotifyTest } from './notify-test.js'
@@ -15,10 +13,9 @@ import type { Registerable } from './shared/types.js'
 import { StateTracker } from './state-tracker.js'
 import { SessionState } from './states.js'
 import { TmuxTitleTracker } from './tmux-title.js'
-import { ToolCallNotifier } from './tool.js'
 
-export { PI_NOTIFY_EVENT } from './events.js'
 export { JOB_END_EVENT, JOB_START_EVENT } from './jobs.js'
+export { PI_NOTIFY_EVENT } from './state-tracker.js'
 
 export default function piNotifyExtension(pi: ExtensionAPI): void {
   const config = loadConfig()
@@ -27,11 +24,8 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
 
   const tmuxTitleTracker = new TmuxTitleTracker(pi, config)
   const focusTracker = new FocusTracker(pi, tmuxTitleTracker, config)
-  const eventsNotifier = new EventsNotifier(pi, config)
-  const toolNotifier = new ToolCallNotifier(pi, config)
   const jobTracker = new JobTracker(pi)
-  const stateTracker = new StateTracker(pi, jobTracker)
-  const idleNotifier = new IdleNotifier(pi, config, stateTracker)
+  const stateTracker = new StateTracker(pi, jobTracker, config)
   const notifyTest = new NotifyTest(pi, title, tmuxTitleTracker)
   const sessionState = new SessionState(pi)
   const sessionStore = new SessionStore(pi, stateTracker)
@@ -56,9 +50,6 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
     focusTracker,
     jobTracker,
     stateTracker,
-    eventsNotifier,
-    toolNotifier,
-    idleNotifier,
     sessionStore,
     notifyTest,
     dashboardCommand,

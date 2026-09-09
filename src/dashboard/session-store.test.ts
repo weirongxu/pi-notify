@@ -1,11 +1,33 @@
-import { unlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { rmSync, unlinkSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { getAgentDir } from '@earendil-works/pi-coding-agent'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
-import type { StateTracker } from '../state-tracker.js'
+vi.mock('./consts.js', async () => {
+  const { mkdtempSync } = await import('node:fs')
+  const path = await import('node:path')
+  const { tmpdir } = await import('node:os')
+
+  const stateDir = mkdtempSync(path.join(tmpdir(), 'pi-notify-test-'))
+  return {
+    STATE_FILE: path.join(stateDir, 'state.json'),
+    STATE_TMP_FILE: path.join(stateDir, 'state.json.tmp'),
+  }
+})
+
+import type { ResolvedNotifyConfig } from '../config.js'
+import type { JobTracker } from '../jobs.js'
+import { StateTracker } from '../state-tracker.js'
+import { STATE_FILE } from './consts.js'
 import { SessionStore } from './session-store.js'
 import { readState, updateState } from './state-store.js'
 
@@ -113,8 +135,12 @@ const META = {
   projectName: 'test-project',
 }
 
+afterAll(() => {
+  rmSync(dirname(STATE_FILE), { recursive: true, force: true })
+})
+
 describe('SessionStore', () => {
-  const testLockFile = join(getAgentDir(), 'pi-notify-test', 'state.json.lock')
+  const testLockFile = `${STATE_FILE}.lock`
 
   beforeEach(async () => {
     try {
@@ -122,7 +148,7 @@ describe('SessionStore', () => {
     } catch {
       // ignore
     }
-    await updateState(() => ({ version: 1, sessions: {} }))
+    await updateState(() => ({ version: 2, sessions: {} }))
   })
 
   afterEach(() => {
@@ -145,9 +171,11 @@ describe('SessionStore', () => {
     )
     store.register(vi.fn())
 
-    expect(emitSpy).toHaveBeenCalledTimes(2)
+    expect(emitSpy).toHaveBeenCalledTimes(4)
     expect(emitSpy).toHaveBeenCalledWith('running', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('idle', expect.any(Function))
+    expect(emitSpy).toHaveBeenCalledWith('tool', expect.any(Function))
+    expect(emitSpy).toHaveBeenCalledWith('event', expect.any(Function))
     expect(piOnSpy).toHaveBeenCalledWith('session_start', expect.any(Function))
   })
 
@@ -286,5 +314,125 @@ describe('SessionStore', () => {
     expect(() => {
       store.stop()
     }).not.toThrow()
+  })
+
+  it('clears runningSince on idle transition without accumulating duration', async () => {
+    await updateState(() => ({ version: 2, sessions: {} }))
+    const now = Date.now()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+    const pi = makeFakePi()
+    const stateTracker = makeFakeStateTracker()
+    const store = new SessionStore(
+      pi as unknown as ExtensionAPI,
+      stateTracker as unknown as StateTracker,
+    )
+    store.register(() => {})
+
+    pi.emitSessionStart({
+      cwd: META.cwd,
+      sessionManager: { getSessionId: () => SESSION_ID },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    stateTracker.events.emit('running')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    nowSpy.mockReturnValue(now + 5000)
+    stateTracker.events.emit('idle')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const record = readState().sessions[String(process.pid)]
+    expect(record).not.toHaveProperty('runningTime')
+    expect(record?.startedRunningAt).toBeUndefined()
+    nowSpy.mockRestore()
+  })
+
+  it('does not update state on tool emission outside notifyTools', async () => {
+    await updateState(() => ({ version: 2, sessions: {} }))
+    const pi = makeFakePi()
+    const jobTracker = {
+      hasActiveJobs: false,
+      onEnd: () => () => {},
+    } as unknown as JobTracker
+    const tracker = new StateTracker(
+      pi as unknown as ExtensionAPI,
+      jobTracker,
+      {
+        notifyTools: new Set(['read']),
+        events: {},
+      } as unknown as ResolvedNotifyConfig,
+    )
+    tracker.register(() => {})
+
+    const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
+    store.register(() => {})
+
+    pi.emitSessionStart({
+      cwd: META.cwd,
+      sessionManager: { getSessionId: () => SESSION_ID },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(readState().sessions[String(process.pid)]?.state).toBe('idle')
+
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't1',
+      toolName: 'grep',
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const record = readState().sessions[String(process.pid)]
+    expect(record?.state).toBe('idle')
+  })
+
+  it('updates state immediately on event emission', async () => {
+    await updateState(() => ({ version: 2, sessions: {} }))
+    const pi = makeFakePi()
+    const jobTracker = {
+      hasActiveJobs: false,
+      onEnd: () => () => {},
+    } as unknown as JobTracker
+    const tracker = new StateTracker(
+      pi as unknown as ExtensionAPI,
+      jobTracker,
+      {
+        notifyTools: new Set(['bash']),
+        events: { 'permissions:ui_prompt': 'msg' },
+      } as unknown as ResolvedNotifyConfig,
+    )
+    tracker.register(() => {})
+
+    const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
+    store.register(() => {})
+
+    pi.emitSessionStart({
+      cwd: META.cwd,
+      sessionManager: { getSessionId: () => SESSION_ID },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    pi.emitEvent('permissions:ui_prompt', {})
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const record = readState().sessions[String(process.pid)]
+    expect(record?.state).toBe('event:permissions:ui_prompt')
+  })
+
+  it('ignores tool and event emissions before session_start', async () => {
+    await updateState(() => ({ version: 2, sessions: {} }))
+    const pi = makeFakePi()
+    const stateTracker = makeFakeStateTracker()
+    const store = new SessionStore(
+      pi as unknown as ExtensionAPI,
+      stateTracker as unknown as StateTracker,
+    )
+    store.register(() => {})
+
+    stateTracker.events.emit('tool', 'grep')
+    stateTracker.events.emit('event', 'permissions:ui_prompt')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(readState().sessions).toEqual({})
   })
 })

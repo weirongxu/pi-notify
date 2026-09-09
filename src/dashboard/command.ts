@@ -1,6 +1,6 @@
 import { Registrar } from '../shared/registrar.js'
 import { readSessions } from './state-store.js'
-import { createDashboard } from './ui.js'
+import { Dashboard } from './ui/dashboard.js'
 
 export class DashboardCommand extends Registrar {
   protected override setup(): void {
@@ -11,7 +11,7 @@ export class DashboardCommand extends Registrar {
 
         await ctx.ui.custom<unknown>((tui, theme, _keybindings, done) => {
           let closed = false
-          const dashboard = createDashboard({
+          const dashboard = new Dashboard({
             tui,
             theme,
             initialSessions,
@@ -24,12 +24,7 @@ export class DashboardCommand extends Registrar {
             },
           })
 
-          return {
-            render: dashboard.render.bind(dashboard),
-            handleInput: dashboard.handleInput.bind(dashboard),
-            invalidate: dashboard.invalidate.bind(dashboard),
-            dispose: dashboard.dispose.bind(dashboard),
-          }
+          return dashboard
         })
 
         return undefined
