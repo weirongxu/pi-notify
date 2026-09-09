@@ -47,7 +47,7 @@ const COLUMNS: Column[] = [
     width: 10,
     render: (session, theme, width) => {
       const startedRunningAt = session.startedRunningAt
-      if (!startedRunningAt) return ''
+      if (!startedRunningAt) return ''.padEnd(width)
       const duration = Date.now() - startedRunningAt
       return theme.fg('dim', formatDuration(duration).padEnd(width))
     },
