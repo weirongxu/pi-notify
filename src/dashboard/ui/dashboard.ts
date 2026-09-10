@@ -1,6 +1,7 @@
 import type { Theme } from '@earendil-works/pi-coding-agent'
 import type { Component } from '@earendil-works/pi-tui'
 import { Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
+import { clamp } from 'lodash-es'
 
 import type { SessionRecord } from '../state-store.js'
 import { watchStore } from '../watch-store.js'
@@ -30,6 +31,7 @@ export class Dashboard implements Component {
   private cachedLines: string[] = []
   private disposed = false
   private showHidden = false
+  private selectedIndex = 0
   private readonly stopWatching: () => void
 
   constructor({
@@ -57,11 +59,36 @@ export class Dashboard implements Component {
     this.tui.requestRender()
   }
 
+  private clampSelection(): void {
+    if (this.sessions.length === 0) return
+    this.selectedIndex = clamp(this.selectedIndex, 0, this.sessions.length - 1)
+  }
+
+  private moveSelection(delta: 1 | -1): void {
+    if (this.sessions.length === 0) return
+    this.selectedIndex += delta
+    this.clampSelection()
+    this.forceRender()
+  }
+
+  private killSelected(): void {
+    const session = this.sessions[this.selectedIndex]
+    if (!session || session.pid === process.pid) return
+    try {
+      process.kill(session.pid, 'SIGTERM')
+    } catch {
+      // ignore ESRCH etc.
+    }
+    this.refresh()
+  }
+
   private refresh(): void {
     if (this.disposed) return
     this.onRefresh()
       .then((newSessions) => {
+        if (this.disposed) return
         this.sessions = [...newSessions]
+        this.clampSelection()
         this.forceRender()
       })
       .catch(() => {})
@@ -78,17 +105,24 @@ export class Dashboard implements Component {
       return this.cachedLines
     }
     this.cachedWidth = width
-    const columns = resolveColumns(width, this.showHidden)
+    const tableWidth = width - 2
+    const columns = resolveColumns(tableWidth, this.showHidden)
     const rows = [
-      this.theme.fg('borderAccent', this.headerLine(columns)),
-      this.theme.fg('borderAccent', '─'.repeat(Math.max(1, width))),
-      ...this.sessions.map((session) =>
-        columns
+      this.theme.fg('borderAccent', `  ${this.headerLine(columns)}`),
+      this.theme.fg('borderAccent', `  ${'─'.repeat(Math.max(1, tableWidth))}`),
+      ...this.sessions.map((session, index) => {
+        const row = columns
           .map(({ col, width }) => col.render(session, this.theme, width))
-          .join(COLUMN_SEPARATOR),
-      ),
+          .join(COLUMN_SEPARATOR)
+        const selected = index === this.selectedIndex
+        const gutter = selected ? '> ' : '  '
+        const styledRow = selected ? this.theme.underline(row) : row
+        return gutter + styledRow
+      }),
       '',
       this.footerLine(width, [
+        ['j/k/↑↓', 'move'],
+        ['x', 'kill'],
         ['o', 'show/hide ids'],
         ['r', 'refresh'],
         ['q/esc', 'close'],
@@ -113,6 +147,21 @@ export class Dashboard implements Component {
   }
 
   handleInput(data: string): void {
+    if (matchesKey(data, 'j') || matchesKey(data, Key.down)) {
+      this.moveSelection(1)
+      return
+    }
+
+    if (matchesKey(data, 'k') || matchesKey(data, Key.up)) {
+      this.moveSelection(-1)
+      return
+    }
+
+    if (matchesKey(data, 'x')) {
+      this.killSelected()
+      return
+    }
+
     if (matchesKey(data, 'r')) {
       this.refresh()
       return
