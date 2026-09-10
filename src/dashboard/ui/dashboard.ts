@@ -3,6 +3,7 @@ import type { Component } from '@earendil-works/pi-tui'
 import { Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
 
 import type { SessionRecord } from '../state-store.js'
+import { watchStore } from '../watch-store.js'
 import {
   COLUMN_SEPARATOR,
   resolveColumns,
@@ -29,7 +30,7 @@ export class Dashboard implements Component {
   private cachedLines: string[] = []
   private disposed = false
   private showHidden = false
-  private timer: NodeJS.Timeout
+  private readonly stopWatching: () => void
 
   constructor({
     tui,
@@ -46,10 +47,9 @@ export class Dashboard implements Component {
     this.onDispose = onDispose
     this.sessions = [...initialSessions]
 
-    // FIXME: 改成用 fs.watch
-    this.timer = setInterval(() => {
-      if (!this.disposed) this.refresh()
-    }, 10000)
+    this.stopWatching = watchStore(() => {
+      this.refresh()
+    })
   }
 
   private forceRender(): void {
@@ -58,6 +58,7 @@ export class Dashboard implements Component {
   }
 
   private refresh(): void {
+    if (this.disposed) return
     this.onRefresh()
       .then((newSessions) => {
         this.sessions = [...newSessions]
@@ -134,7 +135,7 @@ export class Dashboard implements Component {
 
   dispose(): void {
     this.disposed = true
-    clearInterval(this.timer)
+    this.stopWatching()
     this.onDispose?.()
   }
 }

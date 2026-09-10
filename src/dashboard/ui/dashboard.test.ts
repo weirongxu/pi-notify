@@ -1,6 +1,6 @@
 import type { Theme, ThemeColor } from '@earendil-works/pi-coding-agent'
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { SessionRecord } from '../state-store.js'
 import { Dashboard } from './dashboard.js'
@@ -27,16 +27,21 @@ function makeSession(overrides: Partial<SessionRecord>): SessionRecord {
   }
 }
 
-function makeDashboard(sessions: SessionRecord[]) {
+function makeDashboard(
+  sessions: SessionRecord[],
+  overrides: Partial<{
+    onRefresh: () => Promise<SessionRecord[]>
+  }> = {},
+) {
+  const onRefresh = overrides.onRefresh ?? (async () => sessions)
   return new Dashboard({
     tui: { requestRender: () => {} },
     theme,
     initialSessions: sessions,
-    onRefresh: async () => sessions,
+    onRefresh,
     onClose: () => {},
   })
 }
-
 describe('Dashboard render clipping', () => {
   const longNameSession = makeSession({
     projectName: 'a-very-long-project-name-that-exceeds-any-narrow-width',
@@ -114,5 +119,23 @@ describe('hidden column toggle', () => {
     } finally {
       dashboard.dispose()
     }
+  })
+})
+
+describe('auto-refresh', () => {
+  it('manual r triggers refresh', () => {
+    const onRefresh = vi.fn(async () => [makeSession({})])
+    const dashboard = makeDashboard([makeSession({})], { onRefresh })
+    dashboard.handleInput('r')
+    expect(onRefresh).toHaveBeenCalledTimes(1)
+    dashboard.dispose()
+  })
+
+  it('dispose stops further refreshes', () => {
+    const onRefresh = vi.fn(async () => [makeSession({})])
+    const dashboard = makeDashboard([makeSession({})], { onRefresh })
+    dashboard.dispose()
+    dashboard.handleInput('r')
+    expect(onRefresh).not.toHaveBeenCalled()
   })
 })
