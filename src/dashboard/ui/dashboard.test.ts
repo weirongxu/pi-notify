@@ -127,6 +127,7 @@ describe('dashboard state display', () => {
     const dashboard = makeDashboard([
       makeSession({ pid: process.pid, state: 'idle' }),
     ])
+    dashboard.handleInput('o')
     try {
       const row = dashboard
         .render(200)
@@ -144,6 +145,7 @@ describe('dashboard state display', () => {
     const dashboard = makeDashboard([
       makeSession({ pid: 999, state: 'running' }),
     ])
+    dashboard.handleInput('o')
     try {
       const row = dashboard
         .render(200)

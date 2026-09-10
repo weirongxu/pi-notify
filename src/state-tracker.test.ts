@@ -56,11 +56,29 @@ function makeFakePi(): FakePi {
   }
 }
 
-function makeFakeJobTracker(): JobTracker {
-  return {
+type FakeJobTracker = {
+  hasActiveJobs: boolean
+  onStart: (listener: () => void) => () => void
+  onEnd: (listener: () => void) => () => void
+  startListener?: () => void
+  endListener?: () => void
+}
+
+function makeFakeJobTracker(): FakeJobTracker {
+  const instance: FakeJobTracker = {
     hasActiveJobs: false,
-    onEnd: () => () => {},
-  } as unknown as JobTracker
+    onStart: (listener: () => void) => {
+      instance.startListener = listener
+      return () => {}
+    },
+    onEnd: (listener: () => void) => {
+      instance.endListener = listener
+      return () => {}
+    },
+    startListener: undefined as (() => void) | undefined,
+    endListener: undefined as (() => void) | undefined,
+  }
+  return instance
 }
 
 async function flush(): Promise<void> {
@@ -87,12 +105,14 @@ function makeTracker(
   tracker: StateTracker
   states: string[]
   bodies: string[]
+  jobs: FakeJobTracker
 } {
   const states: string[] = []
   const bodies: string[] = []
+  const jobs = makeFakeJobTracker()
   const tracker = new StateTracker(
     pi as unknown as ExtensionAPI,
-    makeFakeJobTracker(),
+    jobs as unknown as JobTracker,
     config,
   )
   tracker.register((body) => bodies.push(body))
@@ -102,7 +122,7 @@ function makeTracker(
   tracker.events.on('idle', () => {
     states.push('idle')
   })
-  return { tracker, states, bodies }
+  return { tracker, states, bodies, jobs }
 }
 
 describe('StateTracker', () => {
@@ -144,16 +164,28 @@ describe('StateTracker', () => {
 
     pi.emit('turn_start')
     pi.emit('message_start')
-    pi.emit('tool_call', {
-      type: 'tool_call',
-      toolCallId: 't1',
-      toolName: 'read',
-    })
     pi.emit('turn_start')
 
     await flush()
 
     expect(states).toEqual(['running'])
+  })
+
+  it('re-emits running after a notified tool call resets the state', async () => {
+    const pi = makeFakePi()
+    const { states } = makeTracker(pi)
+
+    pi.emit('turn_start')
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't1',
+      toolName: 'bash',
+    })
+    pi.emit('turn_start')
+
+    await flush()
+
+    expect(states).toEqual(['running', 'running'])
   })
 
   it('emits tool only for tools in notifyTools', async () => {
@@ -297,6 +329,19 @@ describe('StateTracker', () => {
 
     pi.emit('turn_start')
     pi.emit('agent_settled')
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(bodies).toEqual(['Idle'])
+  })
+
+  it('notifies Idle after background job activity without a turn', async () => {
+    const pi = makeFakePi()
+    const { bodies, jobs } = makeTracker(pi)
+
+    jobs.startListener?.()
+    jobs.endListener?.()
     vi.advanceTimersByTime(10000)
 
     await flush()

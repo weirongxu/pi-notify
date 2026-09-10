@@ -352,6 +352,7 @@ describe('SessionStore', () => {
     const pi = makeFakePi()
     const jobTracker = {
       hasActiveJobs: false,
+      onStart: () => () => {},
       onEnd: () => () => {},
     } as unknown as JobTracker
     const tracker = new StateTracker(
@@ -391,6 +392,7 @@ describe('SessionStore', () => {
     const pi = makeFakePi()
     const jobTracker = {
       hasActiveJobs: false,
+      onStart: () => () => {},
       onEnd: () => () => {},
     } as unknown as JobTracker
     const tracker = new StateTracker(

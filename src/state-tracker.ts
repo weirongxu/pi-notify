@@ -22,7 +22,6 @@ export class StateTracker extends Registrar {
   private readonly config: ResolvedNotifyConfig
   private idleTimer: NodeJS.Timeout | null = null
   private running = false
-  private hasActivity = false
   private notify: NotifyAction = () => {}
 
   constructor(
@@ -40,9 +39,10 @@ export class StateTracker extends Registrar {
     this.clearIdleTimer()
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null
+      const wasRunning = this.running
       this.running = false
       void this.events.emit('idle')
-      if (this.hasActivity && this.config.finished) {
+      if (wasRunning && this.config.finished) {
         this.notify('Idle')
       }
     }, IDLE_TIMEOUT_MS)
@@ -66,6 +66,7 @@ export class StateTracker extends Registrar {
       if (typeof message !== 'string' || message === '') continue
       const unsubscribe = this.pi.events.on(channel, () => {
         this.notify(message)
+        this.running = false
         void this.events.emit('event', channel)
       })
       this.unsubscribes.push(unsubscribe)
@@ -73,6 +74,7 @@ export class StateTracker extends Registrar {
 
     const customEventUnsub = this.pi.events.on(PI_NOTIFY_EVENT, (payload) => {
       this.notify(String(payload))
+      this.running = false
       void this.events.emit('event', PI_NOTIFY_EVENT)
     })
     this.unsubscribes.push(customEventUnsub)
@@ -82,6 +84,7 @@ export class StateTracker extends Registrar {
     this.pi.on('tool_call', (event) => {
       if (this.config.notifyTools.has(event.toolName)) {
         this.notify(`Tool call: ${event.toolName}`)
+        this.running = false
         void this.events.emit('tool', event.toolName)
       }
       this.clearIdleTimer()
@@ -95,12 +98,12 @@ export class StateTracker extends Registrar {
     this.setupToolCall()
 
     this.pi.on('turn_start', () => {
-      this.hasActivity = true
       this.markRunning()
       this.clearIdleTimer()
     })
 
     this.pi.on('message_start', () => {
+      this.markRunning()
       this.clearIdleTimer()
     })
 
@@ -109,6 +112,10 @@ export class StateTracker extends Registrar {
     })
 
     this.unsubscribes.push(
+      this.jobTracker.onStart(() => {
+        this.markRunning()
+        this.clearIdleTimer()
+      }),
       this.jobTracker.onEnd(() => {
         this.startIdleTimer()
       }),
@@ -117,7 +124,7 @@ export class StateTracker extends Registrar {
 
   override stop(): void {
     super.stop()
+    this.running = false
     this.clearIdleTimer()
-    this.hasActivity = false
   }
 }
