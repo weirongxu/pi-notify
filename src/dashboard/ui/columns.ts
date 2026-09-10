@@ -30,10 +30,16 @@ const COLUMNS: Column[] = [
     name: 'STATE',
     width: 20,
     render: (session, theme, width) => {
-      const color = session.state === 'running' ? 'success' : 'muted'
+      const isDashboard = session.pid === process.pid
+      const label = isDashboard ? 'dashboard' : session.state
+      const color = isDashboard
+        ? 'syntaxKeyword'
+        : session.state === 'running'
+          ? 'success'
+          : 'muted'
       return theme.fg(
         color,
-        truncateToWidth(session.state, width, '…', true).padEnd(width),
+        truncateToWidth(label, width, '…', true).padEnd(width),
       )
     },
   },

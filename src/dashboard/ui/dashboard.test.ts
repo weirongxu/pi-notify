@@ -122,6 +122,42 @@ describe('hidden column toggle', () => {
   })
 })
 
+describe('dashboard state display', () => {
+  it('renders dashboard as state for the current process pid', () => {
+    const dashboard = makeDashboard([
+      makeSession({ pid: process.pid, state: 'idle' }),
+    ])
+    try {
+      const row = dashboard
+        .render(200)
+        .map(stripAnsi)
+        .find((l) => l.includes('abc123'))
+      expect(row).toBeDefined()
+      expect(row).toContain('dashboard')
+      expect(row).not.toContain('idle')
+    } finally {
+      dashboard.dispose()
+    }
+  })
+
+  it('keeps real state for other pids', () => {
+    const dashboard = makeDashboard([
+      makeSession({ pid: 999, state: 'running' }),
+    ])
+    try {
+      const row = dashboard
+        .render(200)
+        .map(stripAnsi)
+        .find((l) => l.includes('abc123'))
+      expect(row).toBeDefined()
+      expect(row).toContain('running')
+      expect(row).not.toContain('dashboard')
+    } finally {
+      dashboard.dispose()
+    }
+  })
+})
+
 describe('auto-refresh', () => {
   it('manual r triggers refresh', () => {
     const onRefresh = vi.fn(async () => [makeSession({})])
