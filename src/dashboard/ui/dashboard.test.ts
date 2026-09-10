@@ -65,12 +65,12 @@ describe('Dashboard render clipping', () => {
     const visible = lines.map(stripAnsi)
     const header = visible.find((l) => l.includes('STATE'))
     expect(header).toBeDefined()
-    const footer = visible.find((l) => l.startsWith('o ids'))
+    const footer = visible.find((l) => l.startsWith('[o] show/hide ids'))
     expect(footer).toBeDefined()
     if (!header || !footer) throw new Error('unreachable')
     expect(header.startsWith('STATE')).toBe(true)
     expect(header.endsWith('…')).toBe(true)
-    expect(footer.startsWith('o ids • r refresh •…')).toBe(true)
+    expect(footer.startsWith('[o] show/hide ids ·…')).toBe(true)
     for (const line of visible) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(20)
     }

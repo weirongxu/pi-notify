@@ -76,7 +76,7 @@ Columns: `SESSION_ID` (last 6 chars), `PID`, `STATE` (running/idle, color-coded)
 
 Keybindings:
 
-- `↑` / `↓` or `j` / `k` — scroll
+- `o` — show/hide the SESSION_ID and PID columns
 - `r` — refresh
 - `q` or `esc` — close
 

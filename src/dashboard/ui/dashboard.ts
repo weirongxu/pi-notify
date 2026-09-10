@@ -87,10 +87,28 @@ export class Dashboard implements Component {
           .join(COLUMN_SEPARATOR),
       ),
       '',
-      this.theme.fg('dim', 'o ids • r refresh • q or esc close'),
+      this.footerLine(width, [
+        ['o', 'show/hide ids'],
+        ['r', 'refresh'],
+        ['q/esc', 'close'],
+      ]),
     ]
     this.cachedLines = rows.map((line) => truncateToWidth(line, width, '…'))
     return this.cachedLines
+  }
+
+  private footerLine(width: number, keys: [string, string][]): string {
+    const sep = this.theme.fg('dim', ' · ')
+    return truncateToWidth(
+      keys
+        .map(
+          ([key, desc]) =>
+            `${this.theme.fg('syntaxKeyword', `[${key}]`)} ${this.theme.fg('success', desc)}`,
+        )
+        .join(sep),
+      width,
+      '…',
+    )
   }
 
   handleInput(data: string): void {
