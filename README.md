@@ -2,7 +2,7 @@
 
 A notification extension for the [pi](https://github.com/earendil-works/pi-coding-agent) coding agent.
 
-`@raidou/pi-notify` fires a native desktop notification on idle, configured tool calls (e.g., `Tool call: ask_user`), and custom pi events (default: `permissions:ui_prompt`).
+`@raidou/pi-notify` fires a native desktop notification on idle, tool calls (optional, e.g. `Tool call: ask_user`), user-facing UI prompts (via pi's `ui_prompt_start`, e.g. permission approvals or `select`/`confirm`/`input` dialogs, requires pi >= 0.85.0), and custom pi events.
 
 ## Installation
 
@@ -25,12 +25,11 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
 {
   "piNotify": {
     "enabled": true, // master on/off switch (default: true)
-    "notifyTools": ["ask_user", "ask_user_question"], // tools that trigger "Tool call" notifications
+    "notifyTools": [], // tools that trigger "Tool call" notifications (default: empty, i.e. no tool notifications)
     "tmuxSymbol": "🔔", // symbol appended to tmux window title (empty string to disable)
     "finished": true, // enable/disable "Idle" notification
     "events": {
-      "permissions:ui_prompt": "Permission prompt", // custom event channel -> notification message
-      "my:custom:event": "Custom event triggered", // add your own custom events
+      "my:custom:event": "Custom event triggered", // custom event channel -> notification message
       "other:event": false, // set to false to disable a specific event
     },
     "finishedThrottleSecs": 0, // 0 = always notify; >0 = skip finished toasts for runs shorter than N seconds
@@ -42,11 +41,13 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
 
 ## What triggers a notification
 
-| Event             | Source                                                      | Default body                                |
-| ----------------- | ----------------------------------------------------------- | ------------------------------------------- |
-| **Finished**      | `agent_settled` (pi idle, no active jobs)                   | `Idle`                                      |
-| **Tool calls**    | `tool_call` on tools in `notifyTools`                       | `Tool call: <toolName>`                     |
-| **Custom events** | Custom pi event channels (default: `permissions:ui_prompt`) | Customizable (default: `Permission prompt`) |
+| Event             | Source                                                                | Default body                      |
+| ----------------- | --------------------------------------------------------------------- | --------------------------------- |
+| **Finished**      | `agent_settled` (pi idle, no active jobs)                             | `Idle`                            |
+| **Tool calls**    | `tool_call` on tools in `notifyTools` (default: none)                 | `Tool call: <toolName>`           |
+| **UI prompts**    | `ui_prompt_start` (requires pi >= 0.85.0)                             | `Waiting: <kind>[ — <title>]` |
+| **Custom events** | Custom pi event channels configured in `events`                       | Customizable                      |
+| **External API**  | `pi.events.emit('pi-notify:notify', 'message')` from other extensions | The emitted message               |
 
 ### Job tracking for background tasks
 

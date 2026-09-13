@@ -54,7 +54,11 @@ export async function readSessions(): Promise<SessionRecord[]> {
 }
 
 export type SessionState =
-  'running' | 'idle' | `tool_call:${string}` | `event:${string}`
+  | 'running'
+  | 'idle'
+  | `tool_call:${string}`
+  | `event:${string}`
+  | `ui_prompt:${string}`
 
 export interface SessionRecord {
   pid: number
@@ -112,8 +116,12 @@ function parseSessionRecord(value: unknown): SessionRecord | undefined {
 
 function isActivityState(
   value: string,
-): value is `tool_call:${string}` | `event:${string}` {
-  return value.startsWith('tool_call:') || value.startsWith('event:')
+): value is `tool_call:${string}` | `event:${string}` | `ui_prompt:${string}` {
+  return (
+    value.startsWith('tool_call:') ||
+    value.startsWith('event:') ||
+    value.startsWith('ui_prompt:')
+  )
 }
 
 function isSessionState(value: unknown): value is SessionState {

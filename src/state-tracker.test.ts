@@ -89,7 +89,7 @@ const BASE_CONFIG: ResolvedNotifyConfig = {
   enabled: true,
   notifyTools: new Set(['bash', 'read']),
   events: {
-    'permissions:ui_prompt': 'msg',
+    'my:custom:event': 'msg',
     'disabled:channel': false,
   },
   finished: true,
@@ -171,6 +171,19 @@ describe('StateTracker', () => {
     expect(states).toEqual(['running'])
   })
 
+  it('re-emits running after a notified custom event resets the state', async () => {
+    const pi = makeFakePi()
+    const { states } = makeTracker(pi)
+
+    pi.emit('turn_start')
+    pi.emitEvent('my:custom:event', {})
+    pi.emit('turn_start')
+
+    await flush()
+
+    expect(states).toEqual(['running', 'running'])
+  })
+
   it('re-emits running after a notified tool call resets the state', async () => {
     const pi = makeFakePi()
     const { states } = makeTracker(pi)
@@ -220,12 +233,12 @@ describe('StateTracker', () => {
       events.push(event.data)
     })
 
-    pi.emitEvent('permissions:ui_prompt', {})
+    pi.emitEvent('my:custom:event', {})
     pi.emitEvent('disabled:channel', {})
 
     await flush()
 
-    expect(events).toEqual(['permissions:ui_prompt'])
+    expect(events).toEqual(['my:custom:event'])
   })
 
   it('unsubscribes from channel events on stop', async () => {
@@ -237,7 +250,7 @@ describe('StateTracker', () => {
     })
 
     tracker.stop()
-    pi.emitEvent('permissions:ui_prompt', {})
+    pi.emitEvent('my:custom:event', {})
 
     await flush()
 
@@ -262,7 +275,7 @@ describe('StateTracker', () => {
     const pi = makeFakePi()
     const { bodies } = makeTracker(pi)
 
-    pi.emitEvent('permissions:ui_prompt', {})
+    pi.emitEvent('my:custom:event', {})
 
     expect(bodies).toEqual(['msg'])
   })
@@ -297,6 +310,56 @@ describe('StateTracker', () => {
     expect(bodies).toEqual(['custom payload'])
   })
 
+  it('notifies on ui_prompt_start with kind and title', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'confirm',
+      title: 'Apply changes?',
+    })
+
+    expect(bodies).toEqual(['Waiting: Confirm — Apply changes?'])
+  })
+
+  it('notifies on ui_prompt_start without a title', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi)
+
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'select',
+    })
+
+    expect(bodies).toEqual(['Waiting: Select'])
+  })
+
+  it('emits ui_prompt with the raw kind and resets running', async () => {
+    const pi = makeFakePi()
+    const { tracker, states } = makeTracker(pi)
+    const kinds: string[] = []
+    tracker.events.on('ui_prompt', (event) => {
+      kinds.push(event.data)
+    })
+
+    pi.emit('turn_start')
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'confirm',
+      title: 'Apply changes?',
+    })
+    pi.emit('turn_start')
+
+    await flush()
+
+    expect(kinds).toEqual(['confirm'])
+    expect(states).toEqual(['running', 'running'])
+  })
+
   it('notifies for tools in notifyTools', () => {
     const pi = makeFakePi()
     const { bodies } = makeTracker(pi)
@@ -318,6 +381,22 @@ describe('StateTracker', () => {
       type: 'tool_call',
       toolCallId: 't1',
       toolName: 'grep',
+    })
+
+    expect(bodies).toEqual([])
+  })
+
+  it('does not notify when notifyTools is empty', () => {
+    const pi = makeFakePi()
+    const { bodies } = makeTracker(pi, {
+      ...BASE_CONFIG,
+      notifyTools: new Set([]),
+    })
+
+    pi.emit('tool_call', {
+      type: 'tool_call',
+      toolCallId: 't1',
+      toolName: 'bash',
     })
 
     expect(bodies).toEqual([])

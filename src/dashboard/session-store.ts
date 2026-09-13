@@ -79,6 +79,9 @@ export class SessionStore extends Registrar {
       this.stateTracker.events.on('tool', async ({ data }) => {
         await this.saveSession(`tool_call:${data}`)
       }),
+      this.stateTracker.events.on('ui_prompt', async ({ data }) => {
+        await this.saveSession(`ui_prompt:${data}`)
+      }),
       this.stateTracker.events.on('event', async ({ data }) => {
         await this.saveSession(`event:${data}`)
       }),

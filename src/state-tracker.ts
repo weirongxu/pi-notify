@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type {
+  ExtensionAPI,
+  UIPromptKind,
+} from '@earendil-works/pi-coding-agent'
 import Emittery from 'emittery'
 
 import type { ResolvedNotifyConfig } from './config.js'
@@ -10,12 +13,27 @@ export const PI_NOTIFY_EVENT = 'pi-notify:notify'
 
 const IDLE_TIMEOUT_MS = 10000
 
+const PROMPT_KIND_LABELS: Record<UIPromptKind, string> = {
+  select: 'Select',
+  confirm: 'Confirm',
+  input: 'Input',
+  editor: 'Editor',
+  custom: 'Prompt',
+}
+
+function promptMessage(kind: UIPromptKind, title?: string): string {
+  const label = PROMPT_KIND_LABELS[kind]
+  if (!title) return `Waiting: ${label}`
+  return `Waiting: ${label} — ${title}`
+}
+
 export class StateTracker extends Registrar {
   readonly events = new Emittery<{
     running: never
     idle: never
     tool: string
     event: string
+    ui_prompt: string
   }>()
 
   private readonly jobTracker: JobTracker
@@ -80,6 +98,14 @@ export class StateTracker extends Registrar {
     this.unsubscribes.push(customEventUnsub)
   }
 
+  private setupUiPrompt() {
+    this.pi.on('ui_prompt_start', (event) => {
+      this.notify(promptMessage(event.kind, event.title))
+      this.running = false
+      void this.events.emit('ui_prompt', event.kind)
+    })
+  }
+
   private setupToolCall() {
     this.pi.on('tool_call', (event) => {
       if (this.config.notifyTools.has(event.toolName)) {
@@ -95,6 +121,7 @@ export class StateTracker extends Registrar {
     this.notify = notify
 
     this.setupPiEvents()
+    this.setupUiPrompt()
     this.setupToolCall()
 
     this.pi.on('turn_start', () => {

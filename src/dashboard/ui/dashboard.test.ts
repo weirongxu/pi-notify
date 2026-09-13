@@ -8,6 +8,7 @@ import { Dashboard } from './dashboard.js'
 const theme = {
   fg: (color: ThemeColor, text: string) => `\x1b[90m${text}\x1b[0m`,
   bold: (text: string) => `\x1b[1m${text}\x1b[0m`,
+  underline: (text: string) => `\x1b[4m${text}\x1b[0m`,
 } as unknown as Theme
 
 const ANSI_RE =

@@ -28,19 +28,7 @@ export interface ResolvedNotifyConfig {
   readonly tmuxSymbol: string
 }
 
-/**
- * Default tool names that trigger notifications.
- *
- * Note: These are built-in pi tool names. If pi renames these tools, the default should be updated.
- * Source: @earendil-works/pi-coding-agent
- */
-const DEFAULT_NOTIFY_TOOLS = ['ask_user', 'ask_user_question'] as const
-
 const DEFAULT_TMUX_SYMBOL = '🔔'
-
-const DEFAULT_EVENTS: NotifyEventsConfig = {
-  'permissions:ui_prompt': 'Permission prompt',
-}
 
 const SETTINGS_PATH = join(getAgentDir(), 'settings.json')
 
@@ -59,11 +47,10 @@ function readRawConfig(): NotifyConfig {
 
 export function loadConfig(): ResolvedNotifyConfig {
   const cfg = readRawConfig()
-  const events = cfg.events ?? DEFAULT_EVENTS
   return {
     enabled: cfg.enabled ?? true,
-    notifyTools: new Set(cfg.notifyTools ?? DEFAULT_NOTIFY_TOOLS),
-    events,
+    notifyTools: new Set(cfg.notifyTools ?? []),
+    events: cfg.events ?? {},
     finished: cfg.finished ?? true,
     onlyNotifyWhenUnfocused: cfg.onlyNotifyWhenUnfocused ?? true,
     unfocusedActivityThresholdMs: Math.max(

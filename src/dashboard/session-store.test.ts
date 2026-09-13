@@ -171,10 +171,11 @@ describe('SessionStore', () => {
     )
     store.register(vi.fn())
 
-    expect(emitSpy).toHaveBeenCalledTimes(4)
+    expect(emitSpy).toHaveBeenCalledTimes(5)
     expect(emitSpy).toHaveBeenCalledWith('running', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('idle', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('tool', expect.any(Function))
+    expect(emitSpy).toHaveBeenCalledWith('ui_prompt', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('event', expect.any(Function))
     expect(piOnSpy).toHaveBeenCalledWith('session_start', expect.any(Function))
   })
@@ -347,6 +348,79 @@ describe('SessionStore', () => {
     nowSpy.mockRestore()
   })
 
+  it('updates state immediately on event emission', async () => {
+    await updateState(() => ({ version: 2, sessions: {} }))
+    const pi = makeFakePi()
+    const jobTracker = {
+      hasActiveJobs: false,
+      onStart: () => () => {},
+      onEnd: () => () => {},
+    } as unknown as JobTracker
+    const tracker = new StateTracker(
+      pi as unknown as ExtensionAPI,
+      jobTracker,
+      {
+        notifyTools: new Set(['bash']),
+        events: { 'permissions:ui_prompt': 'msg' },
+      } as unknown as ResolvedNotifyConfig,
+    )
+    tracker.register(() => {})
+
+    const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
+    store.register(() => {})
+
+    pi.emitSessionStart({
+      cwd: META.cwd,
+      sessionManager: { getSessionId: () => SESSION_ID },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    pi.emitEvent('permissions:ui_prompt', {})
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const record = readState().sessions[String(process.pid)]
+    expect(record?.state).toBe('event:permissions:ui_prompt')
+  })
+
+  it('updates state immediately on ui_prompt emission', async () => {
+    await updateState(() => ({ version: 2, sessions: {} }))
+    const pi = makeFakePi()
+    const jobTracker = {
+      hasActiveJobs: false,
+      onStart: () => () => {},
+      onEnd: () => () => {},
+    } as unknown as JobTracker
+    const tracker = new StateTracker(
+      pi as unknown as ExtensionAPI,
+      jobTracker,
+      {
+        notifyTools: new Set([]),
+        events: {},
+      } as unknown as ResolvedNotifyConfig,
+    )
+    tracker.register(() => {})
+
+    const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
+    store.register(() => {})
+
+    pi.emitSessionStart({
+      cwd: META.cwd,
+      sessionManager: { getSessionId: () => SESSION_ID },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'confirm',
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const record = readState().sessions[String(process.pid)]
+    expect(record?.state).toBe('ui_prompt:confirm')
+  })
+
   it('does not update state on tool emission outside notifyTools', async () => {
     await updateState(() => ({ version: 2, sessions: {} }))
     const pi = makeFakePi()
@@ -385,40 +459,6 @@ describe('SessionStore', () => {
 
     const record = readState().sessions[String(process.pid)]
     expect(record?.state).toBe('idle')
-  })
-
-  it('updates state immediately on event emission', async () => {
-    await updateState(() => ({ version: 2, sessions: {} }))
-    const pi = makeFakePi()
-    const jobTracker = {
-      hasActiveJobs: false,
-      onStart: () => () => {},
-      onEnd: () => () => {},
-    } as unknown as JobTracker
-    const tracker = new StateTracker(
-      pi as unknown as ExtensionAPI,
-      jobTracker,
-      {
-        notifyTools: new Set(['bash']),
-        events: { 'permissions:ui_prompt': 'msg' },
-      } as unknown as ResolvedNotifyConfig,
-    )
-    tracker.register(() => {})
-
-    const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
-    store.register(() => {})
-
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-
-    pi.emitEvent('permissions:ui_prompt', {})
-    await new Promise((resolve) => setTimeout(resolve, 20))
-
-    const record = readState().sessions[String(process.pid)]
-    expect(record?.state).toBe('event:permissions:ui_prompt')
   })
 
   it('ignores tool and event emissions before session_start', async () => {
