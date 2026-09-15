@@ -85,6 +85,9 @@ export class SessionStore extends Registrar {
       this.stateTracker.events.on('event', async ({ data }) => {
         await this.saveSession(`event:${data}`)
       }),
+      this.stateTracker.events.on('notify', async ({ data }) => {
+        await this.saveSession(`notify:${data}`)
+      }),
     )
   }
 }

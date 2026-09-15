@@ -59,6 +59,7 @@ export type SessionState =
   | `tool_call:${string}`
   | `event:${string}`
   | `ui_prompt:${string}`
+  | `notify:${string}`
 
 export interface SessionRecord {
   pid: number

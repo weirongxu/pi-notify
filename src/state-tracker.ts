@@ -34,6 +34,7 @@ export class StateTracker extends Registrar {
     tool: string
     event: string
     ui_prompt: string
+    notify: string
   }>()
 
   private readonly jobTracker: JobTracker
@@ -91,9 +92,10 @@ export class StateTracker extends Registrar {
     }
 
     const customEventUnsub = this.pi.events.on(PI_NOTIFY_EVENT, (payload) => {
-      this.notify(String(payload))
+      const message = String(payload)
+      this.notify(message)
       this.running = false
-      void this.events.emit('event', PI_NOTIFY_EVENT)
+      void this.events.emit('notify', message)
     })
     this.unsubscribes.push(customEventUnsub)
   }
