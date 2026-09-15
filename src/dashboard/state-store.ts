@@ -58,7 +58,7 @@ export type SessionState =
   | 'idle'
   | `tool_call:${string}`
   | `event:${string}`
-  | `ui_prompt:${string}`
+  | `ui:${string}`
   | `notify:${string}`
 
 export interface SessionRecord {

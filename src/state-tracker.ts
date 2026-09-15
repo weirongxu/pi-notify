@@ -104,7 +104,7 @@ export class StateTracker extends Registrar {
     this.pi.on('ui_prompt_start', (event) => {
       this.notify(promptMessage(event.kind, event.title))
       this.running = false
-      void this.events.emit('ui_prompt', event.kind)
+      void this.events.emit('ui_prompt', `${event.kind}:${event.title}`)
     })
   }
 
