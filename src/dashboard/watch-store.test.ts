@@ -3,13 +3,16 @@ import { dirname } from 'node:path'
 
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-vi.mock('./consts.js', async () => {
+import type * as constsModule from './consts.js'
+
+vi.mock('./consts.js', async (importOriginal) => {
   const { mkdtempSync } = await import('node:fs')
   const path = await import('node:path')
   const { tmpdir } = await import('node:os')
 
   const stateDir = mkdtempSync(path.join(tmpdir(), 'pi-notify-watch-test-'))
   return {
+    ...(await importOriginal<typeof constsModule>()),
     STATE_FILE: path.join(stateDir, 'state.json'),
     STATE_TMP_FILE: path.join(stateDir, 'state.json.tmp'),
   }

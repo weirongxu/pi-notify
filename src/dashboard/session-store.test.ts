@@ -12,13 +12,16 @@ import {
   vi,
 } from 'vitest'
 
-vi.mock('./consts.js', async () => {
+import type * as constsModule from './consts.js'
+
+vi.mock('./consts.js', async (importOriginal) => {
   const { mkdtempSync } = await import('node:fs')
   const path = await import('node:path')
   const { tmpdir } = await import('node:os')
 
   const stateDir = mkdtempSync(path.join(tmpdir(), 'pi-notify-test-'))
   return {
+    ...(await importOriginal<typeof constsModule>()),
     STATE_FILE: path.join(stateDir, 'state.json'),
     STATE_TMP_FILE: path.join(stateDir, 'state.json.tmp'),
   }
@@ -171,12 +174,13 @@ describe('SessionStore', () => {
     )
     store.register(vi.fn())
 
-    expect(emitSpy).toHaveBeenCalledTimes(5)
+    expect(emitSpy).toHaveBeenCalledTimes(6)
     expect(emitSpy).toHaveBeenCalledWith('running', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('idle', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('tool', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('ui_prompt', expect.any(Function))
     expect(emitSpy).toHaveBeenCalledWith('event', expect.any(Function))
+    expect(emitSpy).toHaveBeenCalledWith('notify', expect.any(Function))
     expect(piOnSpy).toHaveBeenCalledWith('session_start', expect.any(Function))
   })
 
@@ -413,12 +417,13 @@ describe('SessionStore', () => {
       type: 'ui_prompt_start',
       reason: 'ui_prompt',
       kind: 'confirm',
+      title: 'Pick one',
     })
 
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     const record = readState().sessions[String(process.pid)]
-    expect(record?.state).toBe('ui_prompt:confirm')
+    expect(record?.state).toBe('ui:confirm:Pick one')
   })
 
   it('does not update state on tool emission outside notifyTools', async () => {

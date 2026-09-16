@@ -11,13 +11,16 @@ import {
   vi,
 } from 'vitest'
 
-vi.mock('./consts.js', async () => {
+import type * as constsModule from './consts.js'
+
+vi.mock('./consts.js', async (importOriginal) => {
   const { mkdtempSync } = await import('node:fs')
   const path = await import('node:path')
   const { tmpdir } = await import('node:os')
 
   const stateDir = mkdtempSync(path.join(tmpdir(), 'pi-notify-test-'))
   return {
+    ...(await importOriginal<typeof constsModule>()),
     STATE_FILE: path.join(stateDir, 'state.json'),
     STATE_TMP_FILE: path.join(stateDir, 'state.json.tmp'),
   }
@@ -74,6 +77,30 @@ describe('readState', () => {
     expect(state.version).toBe(2)
     expect(state.sessions[String(process.pid)]).toEqual(record)
   })
+
+  it.each(['ui:input:Continue?', 'notify:idle-done'])(
+    'keeps activity records with state %s',
+    (state) => {
+      const record = {
+        pid: process.pid,
+        sessionId: 'activity-session',
+        cwd: process.cwd(),
+        projectName: 'activity-project',
+        startedAt: Date.now(),
+        state,
+      }
+      writeFileSync(
+        STATE_FILE,
+        JSON.stringify({
+          version: 2,
+          sessions: { [String(process.pid)]: record },
+        }),
+        'utf8',
+      )
+
+      return expect(readSessions()).resolves.toEqual([record])
+    },
+  )
 
   it('drops malformed session records instead of crashing', () => {
     writeFileSync(

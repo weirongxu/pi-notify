@@ -10,7 +10,12 @@ import { dirname } from 'node:path'
 import { omit, partition } from 'lodash-es'
 import lockfile from 'proper-lockfile'
 
-import { STATE_FILE, STATE_TMP_FILE } from './consts.js'
+import {
+  type ActivityState,
+  isActivityState,
+  STATE_FILE,
+  STATE_TMP_FILE,
+} from './consts.js'
 
 const ESRCH = 'ESRCH'
 const EPERM = 'EPERM'
@@ -53,13 +58,7 @@ export async function readSessions(): Promise<SessionRecord[]> {
   return alive
 }
 
-export type SessionState =
-  | 'running'
-  | 'idle'
-  | `tool_call:${string}`
-  | `event:${string}`
-  | `ui:${string}`
-  | `notify:${string}`
+export type SessionState = 'running' | 'idle' | ActivityState
 
 export interface SessionRecord {
   pid: number
@@ -113,16 +112,6 @@ function parseSessionRecord(value: unknown): SessionRecord | undefined {
         ? record.startedRunningAt
         : undefined,
   }
-}
-
-function isActivityState(
-  value: string,
-): value is `tool_call:${string}` | `event:${string}` | `ui_prompt:${string}` {
-  return (
-    value.startsWith('tool_call:') ||
-    value.startsWith('event:') ||
-    value.startsWith('ui_prompt:')
-  )
 }
 
 function isSessionState(value: unknown): value is SessionState {

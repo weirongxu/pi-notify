@@ -356,7 +356,7 @@ describe('StateTracker', () => {
 
     await flush()
 
-    expect(kinds).toEqual(['confirm'])
+    expect(kinds).toEqual(['confirm:Apply changes?'])
     expect(states).toEqual(['running', 'running'])
   })
 
