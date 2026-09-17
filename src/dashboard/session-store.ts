@@ -5,7 +5,8 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import { Registrar } from '../shared/registrar.js'
 import type { StateTracker } from '../state-tracker.js'
-import type { SessionRecord, SessionState } from './state-store.js'
+import type { SessionState } from './consts.js'
+import type { SessionRecord } from './state-store.js'
 import { updateState } from './state-store.js'
 
 export class SessionStore extends Registrar {

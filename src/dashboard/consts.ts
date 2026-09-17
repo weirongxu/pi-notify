@@ -12,9 +12,17 @@ const ACTIVITY_STATE_PREFIXES = [
   'notify:',
 ] as const
 
-export type ActivityState =
-  `${(typeof ACTIVITY_STATE_PREFIXES)[number]}${string}`
+type ActivityStatePrefix = (typeof ACTIVITY_STATE_PREFIXES)[number]
 
-export function isActivityState(value: string): value is ActivityState {
-  return ACTIVITY_STATE_PREFIXES.some((prefix) => value.startsWith(prefix))
+const BASE_STATES = ['running', 'idle'] as const
+
+export type SessionState =
+  (typeof BASE_STATES)[number] | `${ActivityStatePrefix}${string}`
+
+export function isSessionState(value: unknown): value is SessionState {
+  if (typeof value !== 'string') return false
+  return (
+    BASE_STATES.some((state) => value === state) ||
+    ACTIVITY_STATE_PREFIXES.some((prefix) => value.startsWith(prefix))
+  )
 }

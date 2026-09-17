@@ -11,8 +11,8 @@ import { omit, partition } from 'lodash-es'
 import lockfile from 'proper-lockfile'
 
 import {
-  type ActivityState,
-  isActivityState,
+  isSessionState,
+  type SessionState,
   STATE_FILE,
   STATE_TMP_FILE,
 } from './consts.js'
@@ -57,8 +57,6 @@ export async function readSessions(): Promise<SessionRecord[]> {
 
   return alive
 }
-
-export type SessionState = 'running' | 'idle' | ActivityState
 
 export interface SessionRecord {
   pid: number
@@ -112,14 +110,6 @@ function parseSessionRecord(value: unknown): SessionRecord | undefined {
         ? record.startedRunningAt
         : undefined,
   }
-}
-
-function isSessionState(value: unknown): value is SessionState {
-  return (
-    value === 'running' ||
-    value === 'idle' ||
-    (typeof value === 'string' && isActivityState(value))
-  )
 }
 
 function parseState(data: string): DashboardState | undefined {
