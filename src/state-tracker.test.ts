@@ -360,6 +360,28 @@ describe('StateTracker', () => {
     expect(states).toEqual(['running', 'running'])
   })
 
+  it('emits ui_prompt without a title', async () => {
+    const pi = makeFakePi()
+    const { tracker, states } = makeTracker(pi)
+    const kinds: string[] = []
+    tracker.events.on('ui_prompt', (event) => {
+      kinds.push(event.data)
+    })
+
+    pi.emit('turn_start')
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'select',
+    })
+    pi.emit('turn_start')
+
+    await flush()
+
+    expect(kinds).toEqual(['select:'])
+    expect(states).toEqual(['running', 'running'])
+  })
+
   it('notifies for tools in notifyTools', () => {
     const pi = makeFakePi()
     const { bodies } = makeTracker(pi)

@@ -92,10 +92,10 @@ export class StateTracker extends Registrar {
     }
 
     const customEventUnsub = this.pi.events.on(PI_NOTIFY_EVENT, (payload) => {
-      const message = String(payload)
-      this.notify(message)
+      if (typeof payload !== 'string' || payload === '') return
+      this.notify(payload)
       this.running = false
-      void this.events.emit('notify', message)
+      void this.events.emit('notify', payload)
     })
     this.unsubscribes.push(customEventUnsub)
   }
@@ -104,7 +104,7 @@ export class StateTracker extends Registrar {
     this.pi.on('ui_prompt_start', (event) => {
       this.notify(promptMessage(event.kind, event.title))
       this.running = false
-      void this.events.emit('ui_prompt', `${event.kind}:${event.title}`)
+      void this.events.emit('ui_prompt', `${event.kind}:${event.title ?? ''}`)
     })
   }
 
