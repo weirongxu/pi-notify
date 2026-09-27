@@ -426,6 +426,45 @@ describe('SessionStore', () => {
     expect(record?.state).toBe('ui:confirm:Pick one')
   })
 
+  it('stores ui state for custom prompts without a title', async () => {
+    await updateState(() => ({ version: 2, sessions: {} }))
+    const pi = makeFakePi()
+    const jobTracker = {
+      hasActiveJobs: false,
+      onStart: () => () => {},
+      onEnd: () => () => {},
+    } as unknown as JobTracker
+    const tracker = new StateTracker(
+      pi as unknown as ExtensionAPI,
+      jobTracker,
+      {
+        notifyTools: new Set([]),
+        events: {},
+      } as unknown as ResolvedNotifyConfig,
+    )
+    tracker.register(() => {})
+
+    const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
+    store.register(() => {})
+
+    pi.emitSessionStart({
+      cwd: META.cwd,
+      sessionManager: { getSessionId: () => SESSION_ID },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'custom',
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const record = readState().sessions[String(process.pid)]
+    expect(record?.state).toBe('ui:custom:')
+  })
+
   it('does not update state on tool emission outside notifyTools', async () => {
     await updateState(() => ({ version: 2, sessions: {} }))
     const pi = makeFakePi()

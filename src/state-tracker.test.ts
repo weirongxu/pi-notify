@@ -382,6 +382,80 @@ describe('StateTracker', () => {
     expect(states).toEqual(['running', 'running'])
   })
 
+  it('does not emit idle while a ui prompt is open', async () => {
+    const pi = makeFakePi()
+    const { states } = makeTracker(pi)
+
+    pi.emit('turn_start')
+    pi.emit('agent_settled')
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'custom',
+    })
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(states).toEqual(['running'])
+
+    pi.emit('ui_prompt_end')
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(states).toEqual(['running', 'idle'])
+  })
+
+  it('reverts to running after the prompt closes while jobs are active', async () => {
+    const pi = makeFakePi()
+    const { states, jobs } = makeTracker(pi)
+
+    jobs.hasActiveJobs = true
+    jobs.startListener?.()
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'custom',
+    })
+    pi.emit('ui_prompt_end')
+
+    await flush()
+
+    expect(states).toEqual(['running', 'running'])
+  })
+
+  it('only reverts the state after the last nested prompt closes', async () => {
+    const pi = makeFakePi()
+    const { states } = makeTracker(pi)
+
+    pi.emit('turn_start')
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'custom',
+    })
+    pi.emit('ui_prompt_start', {
+      type: 'ui_prompt_start',
+      reason: 'ui_prompt',
+      kind: 'select',
+      title: 'Pick one',
+    })
+    pi.emit('ui_prompt_end')
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(states).toEqual(['running'])
+
+    pi.emit('ui_prompt_end')
+    vi.advanceTimersByTime(10000)
+
+    await flush()
+
+    expect(states).toEqual(['running', 'idle'])
+  })
+
   it('notifies for tools in notifyTools', () => {
     const pi = makeFakePi()
     const { bodies } = makeTracker(pi)

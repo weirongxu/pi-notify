@@ -41,6 +41,7 @@ export class StateTracker extends Registrar {
   private readonly config: ResolvedNotifyConfig
   private idleTimer: NodeJS.Timeout | null = null
   private running = false
+  private uiPromptDepth = 0
   private notify: NotifyAction = () => {}
 
   constructor(
@@ -102,9 +103,22 @@ export class StateTracker extends Registrar {
 
   private setupUiPrompt() {
     this.pi.on('ui_prompt_start', (event) => {
+      this.clearIdleTimer()
+      this.uiPromptDepth++
       this.notify(promptMessage(event.kind, event.title))
       this.running = false
       void this.events.emit('ui_prompt', `${event.kind}:${event.title ?? ''}`)
+    })
+
+    this.pi.on('ui_prompt_end', () => {
+      if (this.uiPromptDepth > 0) this.uiPromptDepth--
+      if (this.uiPromptDepth > 0) return
+      // Revert the transient prompt state once the last prompt closes.
+      if (this.running || this.jobTracker.hasActiveJobs) {
+        void this.events.emit('running')
+      } else {
+        this.startIdleTimer()
+      }
     })
   }
 
@@ -154,6 +168,7 @@ export class StateTracker extends Registrar {
   override stop(): void {
     super.stop()
     this.running = false
+    this.uiPromptDepth = 0
     this.clearIdleTimer()
   }
 }
