@@ -2,21 +2,27 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
+import { type Static, Type } from 'typebox'
+import { Value } from 'typebox/value'
 
 // `false` disables the event
-interface NotifyEventsConfig {
-  readonly [channel: string]: string | false
-}
+const NotifyEventsSchema = Type.Record(
+  Type.String(),
+  Type.Union([Type.String(), Type.Literal(false)]),
+)
+type NotifyEventsConfig = Static<typeof NotifyEventsSchema>
 
-interface NotifyConfig {
-  readonly enabled?: boolean
-  readonly notifyTools?: readonly string[]
-  readonly events?: NotifyEventsConfig
-  readonly finished?: boolean
-  readonly onlyNotifyWhenUnfocused?: boolean
-  readonly unfocusedActivityThresholdSecs?: number
-  readonly tmuxSymbol?: string
-}
+const NotifyConfigSchema = Type.Object({
+  enabled: Type.Optional(Type.Boolean()),
+  notifyTools: Type.Optional(Type.Array(Type.String())),
+  events: Type.Optional(NotifyEventsSchema),
+  finished: Type.Optional(Type.Boolean()),
+  onlyNotifyWhenUnfocused: Type.Optional(Type.Boolean()),
+  unfocusedActivityThresholdSecs: Type.Optional(Type.Number()),
+  tmuxSymbol: Type.Optional(Type.String()),
+  dashboardTmuxKey: Type.Optional(Type.String()),
+})
+type NotifyConfig = Static<typeof NotifyConfigSchema>
 
 export interface ResolvedNotifyConfig {
   readonly enabled: boolean
@@ -26,27 +32,64 @@ export interface ResolvedNotifyConfig {
   readonly onlyNotifyWhenUnfocused: boolean
   readonly unfocusedActivityThresholdMs: number
   readonly tmuxSymbol: string
+  readonly dashboardTmuxKey: string
 }
 
 const DEFAULT_TMUX_SYMBOL = '🔔'
+export const DEFAULT_DASHBOARD_TMUX_KEY = 'alt+d'
 
 const SETTINGS_PATH = join(getAgentDir(), 'settings.json')
 
-function readRawConfig(): NotifyConfig {
-  if (!existsSync(SETTINGS_PATH)) return {}
-  try {
-    const parsed = JSON.parse(readFileSync(SETTINGS_PATH, 'utf8')) as {
-      piNotify?: NotifyConfig
+type RawSettings = Record<string, unknown>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+type ParsedConfigResult =
+  | { readonly status: 'malformed' }
+  | {
+      readonly status: 'valid'
+      readonly settings: RawSettings
+      readonly piNotify: NotifyConfig
     }
-    return parsed.piNotify ?? {}
+
+function readRawConfig(): ParsedConfigResult {
+  if (!existsSync(SETTINGS_PATH)) {
+    return { status: 'valid', settings: {}, piNotify: {} }
+  }
+  let content: string
+  try {
+    content = readFileSync(SETTINGS_PATH, 'utf8')
   } catch {
-    // Malformed settings.json must not break the agent; fall back to defaults.
-    return {}
+    return { status: 'malformed' }
+  }
+  return parseConfig(content)
+}
+
+export function parseConfig(content: string): ParsedConfigResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    return { status: 'malformed' }
+  }
+  if (!isRecord(parsed)) {
+    return { status: 'valid', settings: {}, piNotify: {} }
+  }
+  return {
+    status: 'valid',
+    settings: parsed,
+    piNotify: Value.Check(NotifyConfigSchema, parsed.piNotify)
+      ? parsed.piNotify
+      : {},
   }
 }
 
 export function loadConfig(): ResolvedNotifyConfig {
-  const cfg = readRawConfig()
+  const result = readRawConfig()
+  // Malformed settings.json must not break the agent; fall back to defaults.
+  const cfg: NotifyConfig = result.status === 'valid' ? result.piNotify : {}
   return {
     enabled: cfg.enabled ?? true,
     notifyTools: new Set(cfg.notifyTools ?? []),
@@ -58,5 +101,6 @@ export function loadConfig(): ResolvedNotifyConfig {
       (cfg.unfocusedActivityThresholdSecs ?? 30) * 1000,
     ),
     tmuxSymbol: cfg.tmuxSymbol ?? DEFAULT_TMUX_SYMBOL,
+    dashboardTmuxKey: cfg.dashboardTmuxKey ?? DEFAULT_DASHBOARD_TMUX_KEY,
   }
 }

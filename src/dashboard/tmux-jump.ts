@@ -6,7 +6,7 @@ const LIST_FORMAT = '#{pane_tty}\t#{window_id}'
 const TAB = '\t'
 const NEWLINE = '\n'
 
-const defaultRunner: CommandRunner = (file, args) => {
+export const defaultRunner: CommandRunner = (file, args) => {
   try {
     return execFileSync(file, args, {
       encoding: 'utf8',

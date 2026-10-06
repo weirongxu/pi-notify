@@ -5,7 +5,6 @@ import type { Component } from '@earendil-works/pi-tui'
 
 import { Registrar } from '../shared/registrar.js'
 
-// Placeholder returned to ctx.ui.custom while the child process owns the terminal.
 const EMPTY_COMPONENT: Component = {
   render: () => [],
   invalidate: () => {},
@@ -15,20 +14,20 @@ function resolveCliPath(): string {
   return fileURLToPath(new URL('./cli.ts', import.meta.url))
 }
 
+function buildSpawnArgs(): string[] {
+  return [fileURLToPath(import.meta.resolve('tsx/cli')), resolveCliPath()]
+}
+
 function spawnDashboard(): Promise<void> {
   return new Promise((resolve) => {
     let spawnError: unknown
-    const child = spawn(
-      process.execPath,
-      [fileURLToPath(import.meta.resolve('tsx/cli')), resolveCliPath()],
-      {
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          PI_NOTIFY_DASHBOARD_PID: String(process.pid),
-        },
+    const child = spawn(process.execPath, buildSpawnArgs(), {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        PI_NOTIFY_DASHBOARD_PID: String(process.pid),
       },
-    )
+    })
     // 'error' is always followed by 'close'; resolve only on 'close'.
     child.on('error', (err) => {
       spawnError = err
@@ -51,9 +50,7 @@ export class DashboardCommand extends Registrar {
           ctx.ui.notify('Dashboard requires the pi TUI mode', 'warning')
           return undefined
         }
-
         await ctx.ui.custom<unknown>((tui, _theme, _keybindings, done) => {
-          // Suspend the pi TUI so the child can take over the alt screen.
           tui.stop()
           void spawnDashboard().then(() => {
             tui.start()

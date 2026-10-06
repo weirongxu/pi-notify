@@ -1,5 +1,3 @@
-// Standalone dashboard CLI run via tsx as a separate process from the host.
-// Importing pi-coding-agent (e.g. getAgentDir) is fine; it must not touch the running host instance.
 import process from 'node:process'
 
 import {
@@ -8,76 +6,118 @@ import {
   TuiAltScreen,
 } from '@earendil-works/pi-tui'
 
-import { readSessions } from './state-store.js'
+import { loadConfig } from '../config.js'
+import { readSessions, type SessionRecord } from './state-store.js'
+import {
+  markDashboardTmuxPane,
+  registerDashboardTmuxBinding,
+  unmarkDashboardTmuxPane,
+} from './tmux-binding.js'
 import { Dashboard } from './ui/dashboard.js'
 import { createTheme } from './ui/theme.js'
 import { watchStore } from './watch-store.js'
 
-async function main(): Promise<void> {
-  const terminal = new ProcessTerminal()
-  const tui = new TuiAltScreen(terminal)
-  const theme = createTheme()
+const inTmux = process.env.TMUX !== undefined
 
-  let quitting = false
-  const initialSessions = await readSessions()
-  const dashboard = new Dashboard({
-    tui: {
-      requestRender: () => {
-        tui.requestRender()
-      },
-    },
-    theme,
-    initialSessions,
-    loadSessions: () => readSessions(),
-    onClose: () => void quit(),
-  })
-
-  tui.setLayoutRoot(dashboard)
-  tui.start()
-  tui.setFocus(dashboard)
-
-  const refresh = (): void => {
-    if (quitting) return
-    dashboard.refresh()
-  }
-
-  const stopWatching = watchStore(refresh)
-  const tickTimer = setInterval(() => {
-    if (!quitting) dashboard.tick()
-  }, 1000)
-  tickTimer.unref()
-
-  async function quit(): Promise<void> {
-    if (quitting) return
-    quitting = true
-    clearInterval(tickTimer)
-    stopWatching()
-    dashboard.dispose()
-    tui.stop()
-    try {
-      await terminal.drainInput()
-    } finally {
-      process.exit(0)
-    }
-  }
-
-  // Ctrl+C in raw mode arrives as regular input, not SIGINT.
-  tui.addInputListener((data) => {
-    if (matchesKey(data, 'ctrl+c')) {
-      void quit()
-      return { consume: true }
-    }
-    return undefined
-  })
-
-  const onSignal = (): void => {
-    void quit()
-  }
-  process.on('SIGINT', onSignal)
-  process.on('SIGTERM', onSignal)
+interface DashboardHandle {
+  stop(): Promise<void>
 }
 
-main().catch((err: unknown) => {
-  console.error(err)
-  process.exit(1)
-})
+function runDashboard(
+  initialSessions: SessionRecord[],
+): Promise<DashboardHandle> {
+  return new Promise((resolve) => {
+    const terminal = new ProcessTerminal()
+    const tui = new TuiAltScreen(terminal)
+    const theme = createTheme()
+
+    const dashboard = new Dashboard({
+      tui: {
+        requestRender: () => {
+          tui.requestRender()
+        },
+      },
+      theme,
+      initialSessions,
+      loadSessions: () => readSessions(),
+      onClose: finish,
+    })
+
+    let stopWatching: (() => void) | undefined
+    let tickTimer: NodeJS.Timeout | undefined
+    let stopped = false
+
+    function teardown(): void {
+      if (tickTimer !== undefined) clearInterval(tickTimer)
+      stopWatching?.()
+      dashboard.dispose()
+      tui.stop()
+    }
+
+    const handle: DashboardHandle = {
+      stop: async () => {
+        if (stopped) return
+        stopped = true
+        teardown()
+        await terminal.drainInput()
+      },
+    }
+
+    function finish(): void {
+      resolve(handle)
+    }
+
+    try {
+      tui.setLayoutRoot(dashboard)
+      tui.start()
+      tui.setFocus(dashboard)
+
+      stopWatching = watchStore(() => {
+        dashboard.refresh()
+      })
+      tickTimer = setInterval(() => {
+        dashboard.tick()
+      }, 1000)
+      tickTimer.unref()
+
+      // Ctrl+C in raw mode arrives as regular input, not SIGINT.
+      tui.addInputListener((data) => {
+        if (matchesKey(data, 'ctrl+c')) {
+          finish()
+          return { consume: true }
+        }
+        return undefined
+      })
+
+      process.on('SIGINT', finish)
+      process.on('SIGTERM', finish)
+    } catch (err) {
+      teardown()
+      void terminal.drainInput()
+      throw err
+    }
+  })
+}
+
+async function main(): Promise<void> {
+  if (inTmux) {
+    markDashboardTmuxPane()
+    registerDashboardTmuxBinding(loadConfig().dashboardTmuxKey)
+  }
+
+  const initialSessions = await readSessions()
+
+  let exitCode = 0
+  try {
+    const dashboard = await runDashboard(initialSessions)
+    await dashboard.stop()
+  } catch (err) {
+    console.error(err)
+    exitCode = 1
+  } finally {
+    if (inTmux) unmarkDashboardTmuxPane()
+  }
+  process.exit(exitCode)
+}
+
+void main()
