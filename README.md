@@ -71,7 +71,7 @@ Events are automatically cleaned up on `session_shutdown`.
 
 ### `/notify-dashboard`
 
-Open a full-screen TUI dashboard listing all pi sessions, with summary counts (total, running, idle) and an auto-refresh every second.
+Open a full-screen dashboard listing all pi sessions with summary counts (total, running, idle).
 
 Columns: `SESSION_ID` (last 6 chars), `PID`, `STATE` (running/idle, color-coded), `PROJECT`, `UPTIME`.
 

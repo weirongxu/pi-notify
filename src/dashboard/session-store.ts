@@ -5,7 +5,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import { Registrar } from '../shared/registrar.js'
 import type { StateTracker } from '../state-tracker.js'
-import type { SessionState } from './consts.js'
+import { ACTIVITY_EVENT_PREFIXES, type SessionState } from './consts.js'
 import type { SessionRecord } from './state-store.js'
 import { updateState } from './state-store.js'
 
@@ -57,7 +57,7 @@ export class SessionStore extends Registrar {
       try {
         normalizedCwd = realpathSync(ctx.cwd)
       } catch {
-        // Use original path if realpathSync fails
+        // Ignore realpath failures; fall back to ctx.cwd.
       }
       const meta = {
         pid: process.pid,
@@ -77,18 +77,11 @@ export class SessionStore extends Registrar {
       this.stateTracker.events.on('idle', async () => {
         await this.saveSession('idle')
       }),
-      this.stateTracker.events.on('tool', async ({ data }) => {
-        await this.saveSession(`tool_call:${data}`)
-      }),
-      this.stateTracker.events.on('ui_prompt', async ({ data }) => {
-        await this.saveSession(`ui:${data}`)
-      }),
-      this.stateTracker.events.on('event', async ({ data }) => {
-        await this.saveSession(`event:${data}`)
-      }),
-      this.stateTracker.events.on('notify', async ({ data }) => {
-        await this.saveSession(`notify:${data}`)
-      }),
+      ...ACTIVITY_EVENT_PREFIXES.map(([event, prefix]) =>
+        this.stateTracker.events.on(event, async ({ data }) => {
+          await this.saveSession(`${prefix}${data}`)
+        }),
+      ),
     )
   }
 }

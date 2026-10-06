@@ -27,14 +27,18 @@ export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0)
     return true
-  } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err) {
-      const code = (err as { code: string }).code
-      if (code === EPERM) return true
-      if (code === ESRCH) return false
-    }
+  } catch (err) {
+    const code = errCode(err)
+    if (code === EPERM) return true
+    if (code === ESRCH) return false
     return false
   }
+}
+
+function errCode(err: unknown): string | undefined {
+  if (!(err instanceof Error) || !('code' in err)) return undefined
+  const { code } = err
+  return typeof code === 'string' ? code : undefined
 }
 
 export async function readSessions(): Promise<SessionRecord[]> {
@@ -76,14 +80,12 @@ export interface DashboardState {
 const LOCK_RETRY_INTERVAL_MS = 50
 const LOCK_MAX_RETRIES = 20
 
-function ensureStateDir(): void {
+export function ensureStateDir(): void {
   const dir = dirname(STATE_FILE)
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })
   }
 }
-
-ensureStateDir()
 
 function parseSessionRecord(value: unknown): SessionRecord | undefined {
   if (typeof value !== 'object' || value === null) return undefined
@@ -128,7 +130,7 @@ function parseState(data: string): DashboardState | undefined {
   for (const [key, value] of Object.entries(raw.sessions)) {
     sessions[key] = parseSessionRecord(value)
   }
-  // Records from earlier versions without optional fields parse as-is.
+  // Records from older versions lack optional fields; they parse as-is.
   return { version: 2, sessions }
 }
 
@@ -148,6 +150,7 @@ export function readState(): DashboardState {
 export async function updateState(
   mutator: (state: DashboardState) => DashboardState,
 ): Promise<void> {
+  ensureStateDir()
   const release = await lockfile.lock(STATE_FILE, {
     realpath: false,
     stale: 30000,

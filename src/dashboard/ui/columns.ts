@@ -1,8 +1,8 @@
-import type { Theme } from '@earendil-works/pi-coding-agent'
 import { truncateToWidth } from '@earendil-works/pi-tui'
 import { sumBy } from 'lodash-es'
 
 import type { SessionRecord } from '../state-store.js'
+import type { Theme } from './theme.js'
 
 interface Column {
   name: string
@@ -30,7 +30,8 @@ const COLUMNS: Column[] = [
     name: 'STATE',
     width: 20,
     render: (session, theme, width) => {
-      const isDashboard = session.pid === process.pid
+      const isDashboard =
+        String(session.pid) === process.env.PI_NOTIFY_DASHBOARD_PID
       const label = isDashboard ? 'dashboard' : session.state
       const color = isDashboard
         ? 'syntaxKeyword'

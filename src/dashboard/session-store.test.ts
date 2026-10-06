@@ -138,6 +138,40 @@ const META = {
   projectName: 'test-project',
 }
 
+function makeStore(pi: FakePi, stateTracker: FakeStateTracker): SessionStore {
+  const store = new SessionStore(
+    pi as unknown as ExtensionAPI,
+    stateTracker as unknown as StateTracker,
+  )
+  store.register(() => {})
+  return store
+}
+
+function emitSessionStart(pi: FakePi): void {
+  pi.emitSessionStart({
+    cwd: META.cwd,
+    sessionManager: { getSessionId: () => SESSION_ID },
+  })
+}
+
+function makeRealTracker(
+  pi: FakePi,
+  notifyTools: string[],
+  events: Record<string, string> = {},
+): StateTracker {
+  const jobTracker = {
+    hasActiveJobs: false,
+    onStart: () => () => {},
+    onEnd: () => () => {},
+  } as unknown as JobTracker
+  const tracker = new StateTracker(pi as unknown as ExtensionAPI, jobTracker, {
+    notifyTools: new Set(notifyTools),
+    events,
+  } as unknown as ResolvedNotifyConfig)
+  tracker.register(() => {})
+  return tracker
+}
+
 afterAll(() => {
   rmSync(dirname(STATE_FILE), { recursive: true, force: true })
 })
@@ -162,130 +196,36 @@ describe('SessionStore', () => {
     }
   })
 
-  it('creates instance and registers event listeners', () => {
+  it('handles session_start and running/idle events without errors', () => {
     const pi = makeFakePi()
     const stateTracker = makeFakeStateTracker()
-    const emitSpy = vi.spyOn(stateTracker.events, 'on')
-    const piOnSpy = vi.spyOn(pi, 'on')
-
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(vi.fn())
-
-    expect(emitSpy).toHaveBeenCalledTimes(6)
-    expect(emitSpy).toHaveBeenCalledWith('running', expect.any(Function))
-    expect(emitSpy).toHaveBeenCalledWith('idle', expect.any(Function))
-    expect(emitSpy).toHaveBeenCalledWith('tool', expect.any(Function))
-    expect(emitSpy).toHaveBeenCalledWith('ui_prompt', expect.any(Function))
-    expect(emitSpy).toHaveBeenCalledWith('event', expect.any(Function))
-    expect(emitSpy).toHaveBeenCalledWith('notify', expect.any(Function))
-    expect(piOnSpy).toHaveBeenCalledWith('session_start', expect.any(Function))
-  })
-
-  it('handles session_start event without errors', () => {
-    const pi = makeFakePi()
-    const stateTracker = makeFakeStateTracker()
-
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(vi.fn())
+    const store = makeStore(pi, stateTracker)
 
     expect(() => {
-      pi.emitSessionStart({
-        cwd: META.cwd,
-        sessionManager: { getSessionId: () => SESSION_ID },
-      })
-    }).not.toThrow()
-  })
-
-  it('handles running event without errors', () => {
-    const pi = makeFakePi()
-    const stateTracker = makeFakeStateTracker()
-
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(vi.fn())
-
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
-
-    expect(() => {
+      emitSessionStart(pi)
       stateTracker.events.emit('running')
-    }).not.toThrow()
-  })
-
-  it('handles idle event without errors', () => {
-    const pi = makeFakePi()
-    const stateTracker = makeFakeStateTracker()
-
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(vi.fn())
-
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
-
-    expect(() => {
       stateTracker.events.emit('idle')
+      store.stop()
     }).not.toThrow()
   })
 
-  it('ignores running event when session not started', () => {
+  it('ignores events before session_start', () => {
     const pi = makeFakePi()
     const stateTracker = makeFakeStateTracker()
+    makeStore(pi, stateTracker)
 
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(vi.fn())
+    stateTracker.events.emit('running')
+    stateTracker.events.emit('idle')
 
-    expect(() => {
-      stateTracker.events.emit('running')
-    }).not.toThrow()
-  })
-
-  it('ignores idle event when session not started', () => {
-    const pi = makeFakePi()
-    const stateTracker = makeFakeStateTracker()
-
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(vi.fn())
-
-    expect(() => {
-      stateTracker.events.emit('idle')
-    }).not.toThrow()
+    expect(readState().sessions).toEqual({})
   })
 
   it('writes running and idle states to state.json', async () => {
     const pi = makeFakePi()
     const stateTracker = makeFakeStateTracker()
+    makeStore(pi, stateTracker)
 
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(() => {})
-
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
+    emitSessionStart(pi)
     await new Promise((resolve) => setTimeout(resolve, 10))
 
     stateTracker.events.emit('running')
@@ -301,42 +241,14 @@ describe('SessionStore', () => {
     expect(record?.state).toBe('idle')
   })
 
-  it('stops without errors after session started', () => {
-    const pi = makeFakePi()
-    const stateTracker = makeFakeStateTracker()
-
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(vi.fn())
-
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
-
-    expect(() => {
-      store.stop()
-    }).not.toThrow()
-  })
-
-  it('clears runningSince on idle transition without accumulating duration', async () => {
-    await updateState(() => ({ version: 2, sessions: {} }))
+  it('clears startedRunningAt on idle transition', async () => {
     const now = Date.now()
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
     const pi = makeFakePi()
     const stateTracker = makeFakeStateTracker()
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(() => {})
+    makeStore(pi, stateTracker)
 
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
+    emitSessionStart(pi)
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     stateTracker.events.emit('running')
@@ -347,36 +259,19 @@ describe('SessionStore', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     const record = readState().sessions[String(process.pid)]
-    expect(record).not.toHaveProperty('runningTime')
     expect(record?.startedRunningAt).toBeUndefined()
     nowSpy.mockRestore()
   })
 
   it('updates state immediately on event emission', async () => {
-    await updateState(() => ({ version: 2, sessions: {} }))
     const pi = makeFakePi()
-    const jobTracker = {
-      hasActiveJobs: false,
-      onStart: () => () => {},
-      onEnd: () => () => {},
-    } as unknown as JobTracker
-    const tracker = new StateTracker(
-      pi as unknown as ExtensionAPI,
-      jobTracker,
-      {
-        notifyTools: new Set(['bash']),
-        events: { 'permissions:ui_prompt': 'msg' },
-      } as unknown as ResolvedNotifyConfig,
-    )
-    tracker.register(() => {})
-
+    const tracker = makeRealTracker(pi, ['bash'], {
+      'permissions:ui_prompt': 'msg',
+    })
     const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
     store.register(() => {})
 
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
+    emitSessionStart(pi)
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     pi.emitEvent('permissions:ui_prompt', {})
@@ -387,30 +282,12 @@ describe('SessionStore', () => {
   })
 
   it('updates state immediately on ui_prompt emission', async () => {
-    await updateState(() => ({ version: 2, sessions: {} }))
     const pi = makeFakePi()
-    const jobTracker = {
-      hasActiveJobs: false,
-      onStart: () => () => {},
-      onEnd: () => () => {},
-    } as unknown as JobTracker
-    const tracker = new StateTracker(
-      pi as unknown as ExtensionAPI,
-      jobTracker,
-      {
-        notifyTools: new Set([]),
-        events: {},
-      } as unknown as ResolvedNotifyConfig,
-    )
-    tracker.register(() => {})
-
+    const tracker = makeRealTracker(pi, [])
     const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
     store.register(() => {})
 
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
+    emitSessionStart(pi)
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     pi.emit('ui_prompt_start', {
@@ -427,30 +304,12 @@ describe('SessionStore', () => {
   })
 
   it('stores ui state for custom prompts without a title', async () => {
-    await updateState(() => ({ version: 2, sessions: {} }))
     const pi = makeFakePi()
-    const jobTracker = {
-      hasActiveJobs: false,
-      onStart: () => () => {},
-      onEnd: () => () => {},
-    } as unknown as JobTracker
-    const tracker = new StateTracker(
-      pi as unknown as ExtensionAPI,
-      jobTracker,
-      {
-        notifyTools: new Set([]),
-        events: {},
-      } as unknown as ResolvedNotifyConfig,
-    )
-    tracker.register(() => {})
-
+    const tracker = makeRealTracker(pi, [])
     const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
     store.register(() => {})
 
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
+    emitSessionStart(pi)
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     pi.emit('ui_prompt_start', {
@@ -466,30 +325,12 @@ describe('SessionStore', () => {
   })
 
   it('does not update state on tool emission outside notifyTools', async () => {
-    await updateState(() => ({ version: 2, sessions: {} }))
     const pi = makeFakePi()
-    const jobTracker = {
-      hasActiveJobs: false,
-      onStart: () => () => {},
-      onEnd: () => () => {},
-    } as unknown as JobTracker
-    const tracker = new StateTracker(
-      pi as unknown as ExtensionAPI,
-      jobTracker,
-      {
-        notifyTools: new Set(['read']),
-        events: {},
-      } as unknown as ResolvedNotifyConfig,
-    )
-    tracker.register(() => {})
-
+    const tracker = makeRealTracker(pi, ['read'])
     const store = new SessionStore(pi as unknown as ExtensionAPI, tracker)
     store.register(() => {})
 
-    pi.emitSessionStart({
-      cwd: META.cwd,
-      sessionManager: { getSessionId: () => SESSION_ID },
-    })
+    emitSessionStart(pi)
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(readState().sessions[String(process.pid)]?.state).toBe('idle')
@@ -506,14 +347,9 @@ describe('SessionStore', () => {
   })
 
   it('ignores tool and event emissions before session_start', async () => {
-    await updateState(() => ({ version: 2, sessions: {} }))
     const pi = makeFakePi()
     const stateTracker = makeFakeStateTracker()
-    const store = new SessionStore(
-      pi as unknown as ExtensionAPI,
-      stateTracker as unknown as StateTracker,
-    )
-    store.register(() => {})
+    makeStore(pi, stateTracker)
 
     stateTracker.events.emit('tool', 'grep')
     stateTracker.events.emit('event', 'permissions:ui_prompt')

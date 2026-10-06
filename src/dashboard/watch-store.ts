@@ -2,6 +2,7 @@ import { type FSWatcher, watch } from 'node:fs'
 import { basename, dirname } from 'node:path'
 
 import { STATE_FILE } from './consts.js'
+import { ensureStateDir } from './state-store.js'
 
 const DEFAULT_DEBOUNCE_MS = 150
 
@@ -17,6 +18,7 @@ export function watchStore(
 
   let watcher: FSWatcher
   try {
+    ensureStateDir()
     watcher = watch(dirname(STATE_FILE), (_event, filename) => {
       if (filename !== null && filename !== stateFileName) return
       if (timer !== null) clearTimeout(timer)

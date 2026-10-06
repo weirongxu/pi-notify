@@ -1,21 +1,20 @@
-import type { Theme } from '@earendil-works/pi-coding-agent'
 import type { Component } from '@earendil-works/pi-tui'
 import { Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
 import { clamp } from 'lodash-es'
 
 import type { SessionRecord } from '../state-store.js'
-import { watchStore } from '../watch-store.js'
 import {
   COLUMN_SEPARATOR,
   resolveColumns,
   type ResolvedColumn,
 } from './columns.js'
+import type { Theme } from './theme.js'
 
 export interface DashboardProps {
   tui: { requestRender: () => void }
   theme: Theme
   initialSessions: SessionRecord[]
-  onRefresh: () => Promise<SessionRecord[]>
+  loadSessions: () => Promise<SessionRecord[]>
   onClose: () => void
   onDispose?: () => void
 }
@@ -23,7 +22,7 @@ export interface DashboardProps {
 export class Dashboard implements Component {
   private readonly tui: DashboardProps['tui']
   private readonly theme: Theme
-  private readonly onRefresh: DashboardProps['onRefresh']
+  private readonly loadSessions: DashboardProps['loadSessions']
   private readonly onClose: DashboardProps['onClose']
   private readonly onDispose: DashboardProps['onDispose']
   private sessions: SessionRecord[]
@@ -32,26 +31,21 @@ export class Dashboard implements Component {
   private disposed = false
   private showHidden = false
   private selectedIndex = 0
-  private readonly stopWatching: () => void
 
   constructor({
     tui,
     theme,
     initialSessions,
-    onRefresh,
+    loadSessions,
     onClose,
     onDispose,
   }: DashboardProps) {
     this.tui = tui
     this.theme = theme
-    this.onRefresh = onRefresh
+    this.loadSessions = loadSessions
     this.onClose = onClose
     this.onDispose = onDispose
     this.sessions = [...initialSessions]
-
-    this.stopWatching = watchStore(() => {
-      this.refresh()
-    })
   }
 
   private forceRender(): void {
@@ -82,9 +76,14 @@ export class Dashboard implements Component {
     this.refresh()
   }
 
-  private refresh(): void {
+  tick(): void {
     if (this.disposed) return
-    this.onRefresh()
+    this.forceRender()
+  }
+
+  refresh(): void {
+    if (this.disposed) return
+    this.loadSessions()
       .then((newSessions) => {
         if (this.disposed) return
         this.sessions = [...newSessions]
@@ -108,6 +107,8 @@ export class Dashboard implements Component {
     const tableWidth = width - 2
     const columns = resolveColumns(tableWidth, this.showHidden)
     const rows = [
+      this.summaryLine(width),
+      '',
       this.theme.fg('borderAccent', `  ${this.headerLine(columns)}`),
       this.theme.fg('borderAccent', `  ${'─'.repeat(Math.max(1, tableWidth))}`),
       ...this.sessions.map((session, index) => {
@@ -130,6 +131,23 @@ export class Dashboard implements Component {
     ]
     this.cachedLines = rows.map((line) => truncateToWidth(line, width, '…'))
     return this.cachedLines
+  }
+
+  private summaryLine(width: number): string {
+    const total = this.sessions.length
+    // Only base 'running' counts; activity-prefixed states are recent-activity markers.
+    const running = this.sessions.filter((s) => s.state === 'running').length
+    const idle = total - running
+    const sep = this.theme.fg('dim', ' · ')
+    return truncateToWidth(
+      [
+        `total ${this.theme.fg('text', String(total))}`,
+        `running ${this.theme.fg('success', String(running))}`,
+        `idle ${this.theme.fg('muted', String(idle))}`,
+      ].join(sep),
+      width,
+      '…',
+    )
   }
 
   private footerLine(width: number, keys: [string, string][]): string {
@@ -184,7 +202,6 @@ export class Dashboard implements Component {
 
   dispose(): void {
     this.disposed = true
-    this.stopWatching()
     this.onDispose?.()
   }
 }

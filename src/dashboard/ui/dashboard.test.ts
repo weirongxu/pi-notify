@@ -1,15 +1,15 @@
-import type { Theme, ThemeColor } from '@earendil-works/pi-coding-agent'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { SessionState } from '../consts.js'
 import type { SessionRecord } from '../state-store.js'
 import { Dashboard } from './dashboard.js'
+import type { Theme, ThemeColor } from './theme.js'
 
-const theme = {
-  fg: (color: ThemeColor, text: string) => `\x1b[90m${text}\x1b[0m`,
-  bold: (text: string) => `\x1b[1m${text}\x1b[0m`,
+const theme: Theme = {
+  fg: (_color: ThemeColor, text: string) => `\x1b[90m${text}\x1b[0m`,
   underline: (text: string) => `\x1b[4m${text}\x1b[0m`,
-} as unknown as Theme
+}
 
 const ANSI_RE =
   // eslint-disable-next-line no-control-regex
@@ -31,15 +31,15 @@ function makeSession(overrides: Partial<SessionRecord>): SessionRecord {
 function makeDashboard(
   sessions: SessionRecord[],
   overrides: Partial<{
-    onRefresh: () => Promise<SessionRecord[]>
+    loadSessions: () => Promise<SessionRecord[]>
   }> = {},
 ) {
-  const onRefresh = overrides.onRefresh ?? (async () => sessions)
+  const loadSessions = overrides.loadSessions ?? (async () => sessions)
   return new Dashboard({
     tui: { requestRender: () => {} },
     theme,
     initialSessions: sessions,
-    onRefresh,
+    loadSessions,
     onClose: () => {},
   })
 }
@@ -136,11 +136,34 @@ describe('hidden column toggle', () => {
   })
 })
 
+describe('summary running count', () => {
+  // Activity-prefixed states are "recent activity" markers, not running.
+  it.each<[SessionState]>([
+    ['ui:custom:'],
+    ['notify:test'],
+    ['event:x'],
+    ['tool_call:bash'],
+  ])('%s state is not counted as running', (state) => {
+    const dashboard = makeDashboard([makeSession({ state })])
+    try {
+      const line = dashboard
+        .render(300)
+        .map(stripAnsi)
+        .find((l) => l.includes('total 1'))
+      expect(line).toBeDefined()
+      expect(line).toContain('running 0')
+      expect(line).toContain('idle 1')
+    } finally {
+      dashboard.dispose()
+    }
+  })
+})
+
 describe('dashboard state display', () => {
-  it('renders dashboard as state for the current process pid', () => {
-    const dashboard = makeDashboard([
-      makeSession({ pid: process.pid, state: 'idle' }),
-    ])
+  it('renders dashboard as state for the dashboard pid from env', () => {
+    const previous = process.env.PI_NOTIFY_DASHBOARD_PID
+    process.env.PI_NOTIFY_DASHBOARD_PID = '123'
+    const dashboard = makeDashboard([makeSession({ pid: 123, state: 'idle' })])
     dashboard.handleInput('o')
     try {
       const row = dashboard
@@ -151,6 +174,8 @@ describe('dashboard state display', () => {
       expect(row).toContain('dashboard')
       expect(row).not.toContain('idle')
     } finally {
+      if (previous === undefined) delete process.env.PI_NOTIFY_DASHBOARD_PID
+      else process.env.PI_NOTIFY_DASHBOARD_PID = previous
       dashboard.dispose()
     }
   })
@@ -176,19 +201,19 @@ describe('dashboard state display', () => {
 
 describe('auto-refresh', () => {
   it('manual r triggers refresh', () => {
-    const onRefresh = vi.fn(async () => [makeSession({})])
-    const dashboard = makeDashboard([makeSession({})], { onRefresh })
+    const loadSessions = vi.fn(async () => [makeSession({})])
+    const dashboard = makeDashboard([makeSession({})], { loadSessions })
     dashboard.handleInput('r')
-    expect(onRefresh).toHaveBeenCalledTimes(1)
+    expect(loadSessions).toHaveBeenCalledTimes(1)
     dashboard.dispose()
   })
 
   it('dispose stops further refreshes', () => {
-    const onRefresh = vi.fn(async () => [makeSession({})])
-    const dashboard = makeDashboard([makeSession({})], { onRefresh })
+    const loadSessions = vi.fn(async () => [makeSession({})])
+    const dashboard = makeDashboard([makeSession({})], { loadSessions })
     dashboard.dispose()
     dashboard.handleInput('r')
-    expect(onRefresh).not.toHaveBeenCalled()
+    expect(loadSessions).not.toHaveBeenCalled()
   })
 })
 
@@ -250,7 +275,7 @@ describe('selection navigation', () => {
   })
 
   it('clamps selection to the last row after refresh shrinks the list', async () => {
-    const onRefresh = vi.fn(async () => [
+    const loadSessions = vi.fn(async () => [
       makeSession({ pid: 3, sessionId: 'ghi789' }),
     ])
     const dashboard = makeDashboard(
@@ -259,7 +284,7 @@ describe('selection navigation', () => {
         makeSession({ pid: 2, sessionId: 'def456' }),
         makeSession({ pid: 4, sessionId: 'jkl012' }),
       ],
-      { onRefresh },
+      { loadSessions },
     )
     try {
       dashboard.handleInput('o')
@@ -269,10 +294,9 @@ describe('selection navigation', () => {
 
       dashboard.handleInput('r')
       await vi.waitFor(() => {
-        expect(onRefresh).toHaveBeenCalled()
+        expect(loadSessions).toHaveBeenCalled()
       })
 
-      // selection stays on the last row (position-based), moving down must not go out of bounds
       dashboard.handleInput('j')
       const visible = rows(dashboard)
       expect(visible).toHaveLength(1)
@@ -308,7 +332,7 @@ describe('kill action', () => {
 
   it('kills the selected session with SIGTERM', async () => {
     killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
-    const onRefresh = vi.fn(async () => [
+    const loadSessions = vi.fn(async () => [
       makeSession({ pid: process.pid, sessionId: 'abc123' }),
     ])
     const dashboard = makeDashboard(
@@ -316,7 +340,7 @@ describe('kill action', () => {
         makeSession({ pid: process.pid, sessionId: 'self001' }),
         makeSession({ pid: 999, sessionId: 'target1' }),
       ],
-      { onRefresh },
+      { loadSessions },
     )
     try {
       dashboard.handleInput('o')
@@ -325,7 +349,7 @@ describe('kill action', () => {
       dashboard.handleInput('x')
       expect(killSpy).toHaveBeenCalledWith(999, 'SIGTERM')
       await vi.waitFor(() => {
-        expect(onRefresh).toHaveBeenCalled()
+        expect(loadSessions).toHaveBeenCalled()
       })
     } finally {
       dashboard.dispose()
@@ -367,7 +391,7 @@ describe('kill action', () => {
 
 describe('selection degradation', () => {
   it('follows the selected session as the list shrinks', async () => {
-    const onRefresh = vi.fn(async () => [
+    const loadSessions = vi.fn(async () => [
       makeSession({ pid: 2, sessionId: 'bbb' }),
     ])
     const dashboard = makeDashboard(
@@ -375,13 +399,12 @@ describe('selection degradation', () => {
         makeSession({ pid: 1, sessionId: 'aaa' }),
         makeSession({ pid: 2, sessionId: 'bbb' }),
       ],
-      { onRefresh },
+      { loadSessions },
     )
     try {
-      // select row 0 (session 'aaa'), refresh removes it -> marker lands on 'bbb'
       dashboard.handleInput('r')
       await vi.waitFor(() => {
-        expect(onRefresh).toHaveBeenCalled()
+        expect(loadSessions).toHaveBeenCalled()
       })
       const visible = dashboard
         .render(200)
@@ -390,11 +413,10 @@ describe('selection degradation', () => {
       expect(visible).toHaveLength(1)
       expect(visible[0]?.startsWith('> ')).toBe(true)
 
-      // refresh to empty -> no marker; navigation/kill no-op
       const emptyRefresh = vi.fn(async () => [])
       const dashboard2 = makeDashboard(
         [makeSession({ pid: 2, sessionId: 'abc123' })],
-        { onRefresh: emptyRefresh },
+        { loadSessions: emptyRefresh },
       )
       try {
         dashboard2.handleInput('r')

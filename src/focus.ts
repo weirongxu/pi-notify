@@ -1,17 +1,14 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import type { ResolvedNotifyConfig } from './config.js'
+import { FocusInputScanner } from './focus-scanner.js'
 import { Registrar } from './shared/registrar.js'
 import type { TmuxTitleTracker } from './tmux-title.js'
-
-const FOCUS_IN = '\x1b[I'
-const FOCUS_OUT = '\x1b[O'
-const ENABLE_FOCUS_REPORTING = '\x1b[?1004h'
-const DISABLE_FOCUS_REPORTING = '\x1b[?1004l'
 
 export class FocusTracker extends Registrar {
   private readonly titleTracker: TmuxTitleTracker
   private readonly config: ResolvedNotifyConfig
+  private readonly scanner: FocusInputScanner
   private _focused: boolean | undefined = undefined
   private _lastActivityAt = Date.now()
 
@@ -23,6 +20,16 @@ export class FocusTracker extends Registrar {
     super(pi)
     this.titleTracker = titleTracker
     this.config = config
+    this.scanner = new FocusInputScanner({
+      onActivity: () => {
+        this.touch()
+      },
+      onFocus: (focused) => {
+        this.touch()
+        this._focused = focused
+        if (focused) this.titleTracker.restore()
+      },
+    })
   }
 
   get isFocused(): boolean | undefined {
@@ -33,46 +40,25 @@ export class FocusTracker extends Registrar {
     return this._lastActivityAt
   }
 
+  private touch(): void {
+    this._lastActivityAt = Date.now()
+  }
+
   protected override setup(): void {
     this.pi.on('session_start', (_event, ctx) => {
       const activate =
         ctx.mode === 'tui' &&
         (this.titleTracker.enabled || this.config.onlyNotifyWhenUnfocused)
       if (!activate) return
-      this._lastActivityAt = Date.now()
-      process.stdout.write(ENABLE_FOCUS_REPORTING)
-      this.unsubscribes.push(
-        ctx.ui.onTerminalInput((data) => {
-          this._lastActivityAt = Date.now()
-          const result = this.consume(data)
-          if (result.gainedFocus) this.titleTracker.restore()
-          if (result.data !== data) return { consume: true }
-          return undefined
-        }),
-      )
+      this.touch()
+      this.scanner.start()
     })
   }
 
+  // Known limitation: focus reporting (1004) can get disabled on TUI fullscreen switches; not handled here.
   override stop(): void {
-    process.stdout.write(DISABLE_FOCUS_REPORTING)
+    this.scanner.stop()
     super.stop()
     this._focused = undefined
-  }
-
-  private consume(data: string): { data: string; gainedFocus: boolean } {
-    let current = data
-    let gainedFocus = false
-
-    if (current.includes(FOCUS_IN)) {
-      this._focused = true
-      gainedFocus = true
-      current = current.split(FOCUS_IN).join('')
-    }
-    if (current.includes(FOCUS_OUT)) {
-      this._focused = false
-      current = current.split(FOCUS_OUT).join('')
-    }
-
-    return { data: current, gainedFocus }
   }
 }

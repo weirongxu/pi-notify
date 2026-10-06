@@ -5,14 +5,17 @@ import { getAgentDir } from '@earendil-works/pi-coding-agent'
 export const STATE_FILE = join(getAgentDir(), 'pi-notify', 'state.json')
 export const STATE_TMP_FILE = `${STATE_FILE}.tmp`
 
-const ACTIVITY_STATE_PREFIXES = [
-  'tool_call:',
-  'event:',
-  'ui:',
-  'notify:',
+export const ACTIVITY_EVENT_PREFIXES = [
+  ['tool', 'tool_call:'],
+  ['ui_prompt', 'ui:'],
+  ['event', 'event:'],
+  ['notify', 'notify:'],
 ] as const
 
-type ActivityStatePrefix = (typeof ACTIVITY_STATE_PREFIXES)[number]
+type ActivityStatePrefix = (typeof ACTIVITY_EVENT_PREFIXES)[number][1]
+
+export const ACTIVITY_STATE_PREFIXES: readonly ActivityStatePrefix[] =
+  ACTIVITY_EVENT_PREFIXES.map(([, prefix]) => prefix)
 
 const BASE_STATES = ['running', 'idle'] as const
 
