@@ -3,6 +3,7 @@ import { Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
 import { clamp } from 'lodash-es'
 
 import type { SessionRecord } from '../state-store.js'
+import { jumpToSessionTmuxWindow } from '../tmux-jump.js'
 import {
   COLUMN_SEPARATOR,
   resolveColumns,
@@ -123,6 +124,7 @@ export class Dashboard implements Component {
       '',
       this.footerLine(width, [
         ['j/k/↑↓', 'move'],
+        ['enter', 'jump'],
         ['x', 'kill'],
         ['o', 'show/hide ids'],
         ['r', 'refresh'],
@@ -182,6 +184,12 @@ export class Dashboard implements Component {
 
     if (matchesKey(data, 'r')) {
       this.refresh()
+      return
+    }
+
+    if (matchesKey(data, Key.enter)) {
+      const session = this.sessions[this.selectedIndex]
+      if (session) jumpToSessionTmuxWindow(session.pid)
       return
     }
 

@@ -3,8 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { SessionState } from '../consts.js'
 import type { SessionRecord } from '../state-store.js'
+import { jumpToSessionTmuxWindow } from '../tmux-jump.js'
 import { Dashboard } from './dashboard.js'
 import type { Theme, ThemeColor } from './theme.js'
+
+vi.mock('../tmux-jump.js', () => ({
+  jumpToSessionTmuxWindow: vi.fn(),
+}))
 
 const theme: Theme = {
   fg: (_color: ThemeColor, text: string) => `\x1b[90m${text}\x1b[0m`,
@@ -76,7 +81,7 @@ describe('Dashboard render clipping', () => {
     if (!header || !footer) throw new Error('unreachable')
     expect(header.startsWith('  STATE')).toBe(true)
     expect(header.endsWith('…')).toBe(true)
-    expect(footer.startsWith('[j/k/↑↓] move · [x]…')).toBe(true)
+    expect(footer.startsWith('[j/k/↑↓] move · [en…')).toBe(true)
     for (const line of visible) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(20)
     }
@@ -317,6 +322,36 @@ describe('selection navigation', () => {
       ).toBe(false)
     } finally {
       dashboard.dispose()
+    }
+  })
+})
+
+describe('enter jump', () => {
+  const jump = vi.mocked(jumpToSessionTmuxWindow)
+
+  it('jumps to the selected session tmux window on enter', () => {
+    const dashboard = makeDashboard([
+      makeSession({ pid: 1, sessionId: 'abc123' }),
+      makeSession({ pid: 2, sessionId: 'def456' }),
+    ])
+    try {
+      dashboard.handleInput('j')
+      dashboard.handleInput('\r')
+      expect(jump).toHaveBeenCalledWith(2)
+    } finally {
+      dashboard.dispose()
+      jump.mockClear()
+    }
+  })
+
+  it('does not jump on empty session list', () => {
+    const dashboard = makeDashboard([])
+    try {
+      dashboard.handleInput('\r')
+      expect(jump).not.toHaveBeenCalled()
+    } finally {
+      dashboard.dispose()
+      jump.mockClear()
     }
   })
 })

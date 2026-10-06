@@ -78,6 +78,7 @@ Columns: `SESSION_ID` (last 6 chars), `PID`, `STATE` (running/idle, color-coded)
 Keybindings:
 
 - `j`/`k` or `↑`/`↓` — move selection
+- `enter` — jump to the selected session's tmux window (same tmux server only)
 - `x` — kill (SIGTERM) the selected session
 - `o` — show/hide the SESSION_ID and PID columns
 - `r` — refresh
