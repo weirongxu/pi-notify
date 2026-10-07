@@ -40,6 +40,7 @@ export class SessionStore extends Registrar {
         cwd: meta.cwd,
         projectName: meta.projectName,
         startedAt: existing?.startedAt ?? now,
+        starred: existing?.starred,
         state: nextState,
         startedRunningAt: startRunningAt,
       }

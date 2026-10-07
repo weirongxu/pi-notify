@@ -76,16 +76,6 @@ Open a full-screen dashboard listing all pi sessions with summary counts (total,
 
 Inside tmux, it registers a live keybinding (default `alt+d`, configurable via `dashboardTmuxKey`) that jumps to the dashboard pane from any pane — trigger with `prefix + alt+d`.
 
-Columns: `SESSION_ID` (last 6 chars), `PID`, `STATE` (running/idle, color-coded), `PROJECT`, `UPTIME`.
-
-Keybindings:
-
-- `j`/`k` or `↑`/`↓` — move selection
-- `enter` — jump to the selected session's tmux window (same tmux server only)
-- `x` — kill (SIGTERM) the selected session
-- `o` — show/hide the SESSION_ID and PID columns
-- `r` — refresh
-- `q` or `esc` — close
 
 ### `/notify-test`
 

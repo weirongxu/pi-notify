@@ -7,7 +7,7 @@ import {
 } from 'node:fs'
 import { dirname } from 'node:path'
 
-import { omit, partition } from 'lodash-es'
+import { omit, orderBy, partition } from 'lodash-es'
 import lockfile from 'proper-lockfile'
 
 import {
@@ -52,14 +52,33 @@ export async function readSessions(): Promise<SessionRecord[]> {
 
   const deadIds = dead.map((session) => String(session.pid))
 
-  if (deadIds.length === 0) return alive
+  if (deadIds.length > 0) {
+    await updateState((s) => {
+      const sessions: typeof s.sessions = omit(s.sessions, deadIds)
+      return { ...s, sessions }
+    })
+  }
 
-  await updateState((s) => {
-    const sessions: typeof s.sessions = omit(s.sessions, deadIds)
-    return { ...s, sessions }
+  return orderBy(alive, [(session) => session.starred === true], ['desc'])
+}
+
+export async function toggleSessionStarred(
+  pid: number,
+): Promise<boolean | undefined> {
+  let starred: boolean | undefined
+  await updateState((state) => {
+    const existing = state.sessions[String(pid)]
+    if (existing === undefined) return state
+    starred = existing.starred !== true
+    return {
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [String(pid)]: { ...existing, starred },
+      },
+    }
   })
-
-  return alive
+  return starred
 }
 
 export interface SessionRecord {
@@ -70,6 +89,7 @@ export interface SessionRecord {
   startedAt: number
   state: SessionState
   startedRunningAt?: number
+  starred?: boolean
 }
 
 export interface DashboardState {
@@ -111,6 +131,7 @@ function parseSessionRecord(value: unknown): SessionRecord | undefined {
       typeof record.startedRunningAt === 'number'
         ? record.startedRunningAt
         : undefined,
+    starred: typeof record.starred === 'boolean' ? record.starred : undefined,
   }
 }
 

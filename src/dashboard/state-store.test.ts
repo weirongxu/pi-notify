@@ -31,10 +31,12 @@ afterAll(() => {
 })
 
 import { STATE_FILE } from './consts.js'
+import type { SessionRecord } from './state-store.js'
 import {
   isProcessAlive,
   readSessions,
   readState,
+  toggleSessionStarred,
   updateState,
 } from './state-store.js'
 
@@ -326,5 +328,158 @@ describe('updateState', () => {
       expect(state.sessions[sessionId]).toBeDefined()
       return state
     })
+  })
+})
+
+describe('toggleSessionStarred', () => {
+  const testLockFile = `${STATE_FILE}.lock`
+
+  beforeEach(async () => {
+    try {
+      unlinkSync(testLockFile)
+    } catch {
+      // ignore
+    }
+    await updateState(() => ({ version: 2, sessions: {} }))
+  })
+
+  afterEach(() => {
+    try {
+      unlinkSync(testLockFile)
+      unlinkSync(STATE_FILE)
+    } catch {
+      // ignore
+    }
+  })
+
+  async function seedSessions(): Promise<void> {
+    await updateState((state) => ({
+      ...state,
+      sessions: {
+        '1': {
+          pid: 1,
+          sessionId: 'one',
+          cwd: '/tmp',
+          projectName: 'one',
+          startedAt: 1,
+          state: 'idle',
+        },
+        '2': {
+          pid: 2,
+          sessionId: 'two',
+          cwd: '/tmp',
+          projectName: 'two',
+          startedAt: 2,
+          state: 'idle',
+        },
+      },
+    }))
+  }
+
+  it('flips starred on and persists it', async () => {
+    await seedSessions()
+
+    await expect(toggleSessionStarred(1)).resolves.toBe(true)
+    expect(readState().sessions['1']?.starred).toBe(true)
+  })
+
+  it('flips starred back off', async () => {
+    await seedSessions()
+    await toggleSessionStarred(1)
+
+    await expect(toggleSessionStarred(1)).resolves.toBe(false)
+    expect(readState().sessions['1']?.starred).toBe(false)
+  })
+
+  it('returns undefined for an unknown pid', async () => {
+    await seedSessions()
+
+    await expect(toggleSessionStarred(999)).resolves.toBeUndefined()
+  })
+})
+
+describe('readSessions starred ordering', () => {
+  const testLockFile = `${STATE_FILE}.lock`
+
+  beforeEach(async () => {
+    try {
+      unlinkSync(testLockFile)
+    } catch {
+      // ignore
+    }
+    await updateState(() => ({ version: 2, sessions: {} }))
+  })
+
+  afterEach(() => {
+    try {
+      unlinkSync(testLockFile)
+      unlinkSync(STATE_FILE)
+    } catch {
+      // ignore
+    }
+  })
+
+  function makeRecord(pid: number, sessionId: string): SessionRecord {
+    return {
+      pid,
+      sessionId,
+      cwd: '/tmp',
+      projectName: sessionId,
+      startedAt: 0,
+      state: 'idle',
+    }
+  }
+
+  it('sorts starred sessions first, keeping the rest stable', async () => {
+    const first = { ...makeRecord(1, 'one') }
+    const second = { ...makeRecord(2, 'two'), starred: true }
+    const third = { ...makeRecord(3, 'three') }
+    await updateState((state) => ({
+      ...state,
+      sessions: { '1': first, '2': second, '3': third },
+    }))
+
+    await expect(readSessions()).resolves.toEqual([second, first, third])
+  })
+
+  it('keeps unstarred order unchanged', async () => {
+    const first = makeRecord(1, 'one')
+    const second = makeRecord(2, 'two')
+    await updateState((state) => ({
+      ...state,
+      sessions: { '1': first, '2': second },
+    }))
+
+    await expect(readSessions()).resolves.toEqual([first, second])
+  })
+})
+
+describe('parseSessionRecord starred round-trip', () => {
+  it('round-trips starred boolean values', () => {
+    const base = {
+      pid: 1,
+      sessionId: 'one',
+      cwd: '/tmp',
+      projectName: 'one',
+      startedAt: 0,
+      state: 'idle',
+    }
+    writeFileSync(
+      STATE_FILE,
+      JSON.stringify({
+        version: 2,
+        sessions: {
+          '1': { ...base, starred: true },
+          '2': { ...base, sessionId: 'two', starred: false },
+          '3': { ...base, sessionId: 'three' },
+        },
+      }),
+      'utf8',
+    )
+
+    const sessions = readState().sessions
+    expect(sessions['1']?.starred).toBe(true)
+    expect(sessions['2']?.starred).toBe(false)
+    expect(sessions['3']?.starred).toBeUndefined()
   })
 })

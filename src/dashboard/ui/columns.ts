@@ -2,7 +2,7 @@ import { truncateToWidth } from '@earendil-works/pi-tui'
 import { sumBy } from 'lodash-es'
 
 import type { SessionRecord } from '../state-store.js'
-import type { Theme } from './theme.js'
+import type { Theme, ThemeColor } from './theme.js'
 
 interface Column {
   name: string
@@ -12,6 +12,14 @@ interface Column {
 }
 
 const COLUMNS: Column[] = [
+  {
+    name: '★',
+    width: 2,
+    render: (session, theme, width) =>
+      session.starred === true
+        ? theme.fg('success', '★'.padEnd(width))
+        : ''.padEnd(width),
+  },
   {
     name: 'SESSION_ID',
     width: 10,
@@ -33,11 +41,7 @@ const COLUMNS: Column[] = [
       const isDashboard =
         String(session.pid) === process.env.PI_NOTIFY_DASHBOARD_PID
       const label = isDashboard ? 'dashboard' : session.state
-      const color = isDashboard
-        ? 'syntaxKeyword'
-        : session.state === 'running'
-          ? 'success'
-          : 'muted'
+      const color = stateColor(isDashboard, session.state)
       return theme.fg(
         color,
         truncateToWidth(label, width, '…', true).padEnd(width),
@@ -80,7 +84,7 @@ export interface ResolvedColumn {
 
 export function resolveColumns(
   totalWidth: number,
-  includeHidden = true,
+  includeHidden: boolean,
 ): ResolvedColumn[] {
   const columns = COLUMNS.filter((col) => includeHidden || !col.hiddenByDefault)
   const fixedWidth = sumBy(columns, (col) => col.width ?? 0)
@@ -90,6 +94,12 @@ export function resolveColumns(
     totalWidth - fixedWidth - separatorWidth,
   )
   return columns.map((col) => ({ col, width: col.width ?? flexibleWidth }))
+}
+
+function stateColor(isDashboard: boolean, state: string): ThemeColor {
+  if (isDashboard) return 'syntaxKeyword'
+  if (state === 'running') return 'success'
+  return 'muted'
 }
 
 function formatDuration(milliseconds: number): string {

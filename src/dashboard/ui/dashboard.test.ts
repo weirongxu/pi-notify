@@ -1,14 +1,28 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
-import { describe, expect, it, vi } from 'vitest'
+import { Key, visibleWidth } from '@earendil-works/pi-tui'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  type MockInstance,
+  vi,
+} from 'vitest'
 
 import type { SessionState } from '../consts.js'
 import type { SessionRecord } from '../state-store.js'
+import { toggleSessionStarred } from '../state-store.js'
 import { jumpToSessionTmuxWindow } from '../tmux-jump.js'
 import { Dashboard } from './dashboard.js'
 import type { Theme, ThemeColor } from './theme.js'
 
 vi.mock('../tmux-jump.js', () => ({
   jumpToSessionTmuxWindow: vi.fn(),
+}))
+
+vi.mock('../state-store.js', () => ({
+  toggleSessionStarred: vi.fn(),
 }))
 
 const theme: Theme = {
@@ -37,6 +51,7 @@ function makeDashboard(
   sessions: SessionRecord[],
   overrides: Partial<{
     loadSessions: () => Promise<SessionRecord[]>
+    onClose: () => void
   }> = {},
 ) {
   const loadSessions = overrides.loadSessions ?? (async () => sessions)
@@ -45,7 +60,7 @@ function makeDashboard(
     theme,
     initialSessions: sessions,
     loadSessions,
-    onClose: () => {},
+    onClose: overrides.onClose ?? (() => {}),
   })
 }
 describe('Dashboard render clipping', () => {
@@ -70,34 +85,84 @@ describe('Dashboard render clipping', () => {
     dashboard.dispose()
   })
 
-  it('clips the header and footer hint lines at width 20', () => {
+  it('wraps the footer hint units at width 20 without truncation', () => {
     const dashboard = makeDashboard([makeSession({})])
     const lines = dashboard.render(20)
     const visible = lines.map(stripAnsi)
     const header = visible.find((l) => l.includes('STATE'))
     expect(header).toBeDefined()
-    const footer = visible.find((l) => l.startsWith('[j/k/'))
-    expect(footer).toBeDefined()
-    if (!header || !footer) throw new Error('unreachable')
-    expect(header.startsWith('  STATE')).toBe(true)
+    if (!header) throw new Error('unreachable')
+    expect(header.startsWith('  ★')).toBe(true)
     expect(header.endsWith('…')).toBe(true)
-    expect(footer.startsWith('[j/k/↑↓] move · [en…')).toBe(true)
-    for (const line of visible) {
-      expect(visibleWidth(line)).toBeLessThanOrEqual(20)
-    }
+    const footer = visible.filter((l) => l.startsWith('['))
+    expect(footer).toEqual([
+      '[j/k/↑↓] move',
+      '[enter] jump',
+      '[space] star',
+      '[x] kill',
+      '[o] show/hide ids',
+      '[r] refresh',
+      '[q/esc] close',
+    ])
+    dashboard.dispose()
+  })
+
+  it('keeps two units on one line when they fit the width exactly', () => {
+    const dashboard = makeDashboard([makeSession({})])
+    const unitA = '[j/k/↑↓] move'
+    const unitB = '[enter] jump'
+    const exactWidth =
+      visibleWidth(unitA) + visibleWidth(' · ') + visibleWidth(unitB)
+    const footer = dashboard
+      .render(exactWidth)
+      .map(stripAnsi)
+      .filter((l) => l.startsWith('['))
+    expect(footer[0]).toBe(`${unitA} · ${unitB}`)
+    dashboard.dispose()
+  })
+
+  it('wraps the next unit when the exact fit is one column short', () => {
+    const dashboard = makeDashboard([makeSession({})])
+    const unitA = '[j/k/↑↓] move'
+    const unitB = '[enter] jump'
+    const narrowWidth =
+      visibleWidth(unitA) + visibleWidth(' · ') + visibleWidth(unitB) - 1
+    const footer = dashboard
+      .render(narrowWidth)
+      .map(stripAnsi)
+      .filter((l) => l.startsWith('['))
+    expect(footer[0]).toBe(unitA)
+    expect(footer[1]).toBe(`${unitB} · [space] star`)
+    dashboard.dispose()
+  })
+
+  it('truncates a single unit wider than the terminal', () => {
+    const dashboard = makeDashboard([makeSession({})])
+    const wideUnit = '[o] show/hide ids'
+    const width = visibleWidth(wideUnit) - 1
+    const footer = dashboard
+      .render(width)
+      .map(stripAnsi)
+      .filter((l) => l.startsWith('['))
+    const truncated = footer.find((l) => l.startsWith('[o] show'))
+    expect(truncated).toBeDefined()
+    if (!truncated) throw new Error('unreachable')
+    expect(truncated.includes('…')).toBe(true)
+    expect(visibleWidth(truncated)).toBeLessThanOrEqual(width)
     dashboard.dispose()
   })
 
   it('aligns header columns with session rows via the 2-char gutter', () => {
-    const dashboard = makeDashboard([makeSession({})])
+    const dashboard = makeDashboard([makeSession({ starred: true })])
     const lines = dashboard.render(200).map(stripAnsi)
     const header = lines.find((l) => l.includes('STATE'))
     const row = lines.find((l) => l.includes('proj'))
     expect(header).toBeDefined()
     expect(row).toBeDefined()
     if (!header || !row) throw new Error('unreachable')
+    expect(header.indexOf('★')).toBe(row.indexOf('★'))
     expect(header.indexOf('PROJECT')).toBe(row.indexOf('proj'))
-    expect(header.indexOf('STATE')).toBe(2)
+    expect(header.indexOf('STATE')).toBe(5)
     dashboard.dispose()
   })
 
@@ -382,6 +447,7 @@ describe('kill action', () => {
       dashboard.handleInput('j')
       expect(rows(dashboard)[1]?.startsWith('> ')).toBe(true)
       dashboard.handleInput('x')
+      dashboard.handleInput('y')
       expect(killSpy).toHaveBeenCalledWith(999, 'SIGTERM')
       await vi.waitFor(() => {
         expect(loadSessions).toHaveBeenCalled()
@@ -475,5 +541,182 @@ describe('selection degradation', () => {
     } finally {
       dashboard.dispose()
     }
+  })
+})
+
+describe('star toggle', () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  beforeEach(() => {
+    vi.mocked(toggleSessionStarred).mockClear()
+  })
+
+  it('space calls toggleSessionStarred with the selected pid then refreshes', async () => {
+    vi.mocked(toggleSessionStarred).mockResolvedValue(true)
+    const loadSessions = vi.fn(async () => [makeSession({ pid: 42 })])
+    const dashboard = makeDashboard([makeSession({ pid: 42 })], {
+      loadSessions,
+    })
+    try {
+      dashboard.handleInput(' ')
+      await flush()
+
+      expect(toggleSessionStarred).toHaveBeenCalledWith(42)
+      expect(loadSessions).toHaveBeenCalled()
+    } finally {
+      dashboard.dispose()
+    }
+  })
+
+  it('does nothing on space with an empty list', async () => {
+    const dashboard = makeDashboard([], {
+      loadSessions: vi.fn(async () => []),
+    })
+    try {
+      dashboard.handleInput(' ')
+      await flush()
+
+      expect(toggleSessionStarred).not.toHaveBeenCalled()
+    } finally {
+      dashboard.dispose()
+    }
+  })
+
+  it('keeps selection on the same session after a re-sorting refresh', async () => {
+    const first = makeSession({ pid: 1 })
+    const second = makeSession({ pid: 2 })
+    const dashboard = makeDashboard([first, second], {
+      loadSessions: async () => [{ ...second, starred: true }, first],
+    })
+    try {
+      dashboard.handleInput('j')
+      dashboard.handleInput('r')
+      await flush()
+
+      const rows = dashboard
+        .render(200)
+        .map(stripAnsi)
+        .filter((l) => l.includes('proj'))
+      expect(rows[0]?.startsWith('> ')).toBe(true)
+    } finally {
+      dashboard.dispose()
+    }
+  })
+})
+
+describe('kill confirmation', () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  let killSpy: MockInstance
+  let onClose: Mock
+  let dashboard: Dashboard
+
+  const confirming = () =>
+    dashboard.render(200).some((l) => l.includes('[y] confirm'))
+
+  beforeEach(() => {
+    killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+    onClose = vi.fn()
+    dashboard = makeDashboard([makeSession({ pid: 42 })], { onClose })
+  })
+
+  afterEach(() => {
+    dashboard.dispose()
+    killSpy.mockRestore()
+  })
+
+  it('x alone does not kill and shows the confirm line', () => {
+    dashboard.handleInput('x')
+    expect(killSpy).not.toHaveBeenCalled()
+    expect(confirming()).toBe(true)
+  })
+
+  it('x then y kills with SIGTERM and refreshes', async () => {
+    const loadSessions = vi.fn(async () => [makeSession({ pid: 42 })])
+    dashboard = makeDashboard([makeSession({ pid: 42 })], {
+      loadSessions,
+      onClose,
+    })
+    dashboard.handleInput('x')
+    expect(confirming()).toBe(true)
+    dashboard.handleInput('y')
+    expect(killSpy).toHaveBeenCalledWith(42, 'SIGTERM')
+    await flush()
+    expect(loadSessions).toHaveBeenCalled()
+  })
+
+  it('x then n cancels without killing', () => {
+    dashboard.handleInput('x')
+    dashboard.handleInput('n')
+    expect(killSpy).not.toHaveBeenCalled()
+    expect(confirming()).toBe(false)
+  })
+
+  it('other keys cancel the confirmation without their own action', () => {
+    dashboard = makeDashboard(
+      [
+        makeSession({ pid: 1, sessionId: 'a' }),
+        makeSession({ pid: 2, sessionId: 'b' }),
+      ],
+      { onClose },
+    )
+    dashboard.handleInput('x')
+    dashboard.handleInput('j')
+    expect(killSpy).not.toHaveBeenCalled()
+    expect(confirming()).toBe(false)
+    const selected = dashboard
+      .render(200)
+      .map(stripAnsi)
+      .filter((l) => l.includes('proj'))
+    expect(selected[0]?.startsWith('> ')).toBe(true)
+  })
+
+  it('esc cancels the confirmation without closing the dashboard', () => {
+    dashboard.handleInput('x')
+    dashboard.handleInput(Key.escape)
+    expect(killSpy).not.toHaveBeenCalled()
+    expect(confirming()).toBe(false)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('x on own-pid session does not enter confirmation', () => {
+    dashboard = makeDashboard([makeSession({ pid: process.pid })], { onClose })
+    dashboard.handleInput('x')
+    expect(killSpy).not.toHaveBeenCalled()
+    expect(confirming()).toBe(false)
+  })
+
+  it('y does nothing when the pending session is no longer present', () => {
+    dashboard.handleInput('x')
+    Object.defineProperty(dashboard, 'sessions', { value: [] })
+    dashboard.handleInput('y')
+    expect(killSpy).not.toHaveBeenCalled()
+    expect(confirming()).toBe(false)
+  })
+
+  it('y does not kill when the pid now belongs to a different session', async () => {
+    dashboard = makeDashboard([makeSession({ pid: 42, sessionId: 'victim' })], {
+      onClose,
+      loadSessions: async () => [
+        makeSession({ pid: 42, sessionId: 'impostor' }),
+      ],
+    })
+    dashboard.handleInput('x')
+    dashboard.handleInput('r')
+    await flush()
+    dashboard.handleInput('y')
+    expect(killSpy).not.toHaveBeenCalled()
+    expect(confirming()).toBe(false)
+  })
+
+  it('cancels pending confirmation when the session disappears after refresh', async () => {
+    dashboard = makeDashboard([makeSession({ pid: 42 })], {
+      onClose,
+      loadSessions: async () => [],
+    })
+    dashboard.handleInput('x')
+    dashboard.handleInput('r')
+    await flush()
+    expect(confirming()).toBe(false)
   })
 })

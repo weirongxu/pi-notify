@@ -357,4 +357,33 @@ describe('SessionStore', () => {
 
     expect(readState().sessions).toEqual({})
   })
+
+  it('preserves starred across state updates', async () => {
+    const pi = makeFakePi()
+    const stateTracker = makeFakeStateTracker()
+    makeStore(pi, stateTracker)
+
+    emitSessionStart(pi)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    await updateState((state) => {
+      const record = state.sessions[String(process.pid)]
+      if (record === undefined) return state
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [String(process.pid)]: { ...record, starred: true },
+        },
+      }
+    })
+
+    stateTracker.events.emit('running')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    stateTracker.events.emit('idle')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(readState().sessions[String(process.pid)]?.starred).toBe(true)
+  })
 })
