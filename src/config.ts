@@ -21,6 +21,7 @@ const NotifyConfigSchema = Type.Object({
   unfocusedActivityThresholdSecs: Type.Optional(Type.Number()),
   tmuxSymbol: Type.Optional(Type.String()),
   dashboardTmuxKey: Type.Optional(Type.String()),
+  dashboardTmuxKeyNeedsPrefix: Type.Optional(Type.Boolean()),
 })
 type NotifyConfig = Static<typeof NotifyConfigSchema>
 
@@ -33,6 +34,7 @@ export interface ResolvedNotifyConfig {
   readonly unfocusedActivityThresholdMs: number
   readonly tmuxSymbol: string
   readonly dashboardTmuxKey: string
+  readonly dashboardTmuxKeyNeedsPrefix: boolean
 }
 
 const DEFAULT_TMUX_SYMBOL = '🔔'
@@ -102,5 +104,6 @@ export function loadConfig(): ResolvedNotifyConfig {
     ),
     tmuxSymbol: cfg.tmuxSymbol ?? DEFAULT_TMUX_SYMBOL,
     dashboardTmuxKey: cfg.dashboardTmuxKey ?? DEFAULT_DASHBOARD_TMUX_KEY,
+    dashboardTmuxKeyNeedsPrefix: cfg.dashboardTmuxKeyNeedsPrefix ?? false,
   }
 }

@@ -48,6 +48,17 @@ function makeRunner(): {
   return { calls, run }
 }
 
+const EXPECTED_SCRIPT = [
+  `p=$(tmux list-panes -a -F '##{pane_id}|##{@pi-notify-dashboard}' | awk -F'|' '$2 == "1" {print $1; exit}')`,
+  'if [ -z "$p" ]; then',
+  "  tmux display-message 'pi-notify: dashboard is not running'",
+  'elif [ "$p" = \'#{pane_id}\' ]; then',
+  '  :',
+  'else',
+  '  tmux switch-client -t "$p"',
+  'fi',
+].join('\n')
+
 describe('tmux pane marking and binding', () => {
   it('marks the pane without touching the window name', () => {
     const { calls, run } = makeRunner()
@@ -68,9 +79,25 @@ describe('tmux pane marking and binding', () => {
     ])
   })
 
-  it('registers the jump script in the prefix table with escaped formats', () => {
+  it('registers the jump script without prefix by default', () => {
     const { calls, run } = makeRunner()
-    registerDashboardTmuxBinding('alt+shift+d', run)
+    registerDashboardTmuxBinding('alt+shift+d', false, run)
+    expect(calls).toHaveLength(1)
+    const [firstCall] = calls
+    if (firstCall === undefined) return
+    const { args } = firstCall
+    expect(args[0]).toBe('bind-key')
+    // -n flag: the binding fires without the tmux prefix.
+    expect(args[1]).toBe('-n')
+    expect(args[2]).toBe('M-S-d')
+    expect(args[3]).toBe('run-shell')
+    const script = args[4] ?? ''
+    expect(script).toBe(EXPECTED_SCRIPT)
+  })
+
+  it('registers the jump script in the prefix table when needsPrefix is true', () => {
+    const { calls, run } = makeRunner()
+    registerDashboardTmuxBinding('alt+shift+d', true, run)
     expect(calls).toHaveLength(1)
     const [firstCall] = calls
     if (firstCall === undefined) return
@@ -81,17 +108,6 @@ describe('tmux pane marking and binding', () => {
     expect(args[1]).toBe('M-S-d')
     expect(args[2]).toBe('run-shell')
     const script = args[3] ?? ''
-    expect(script).toBe(
-      [
-        `p=$(tmux list-panes -a -F '##{pane_id}|##{@pi-notify-dashboard}' | awk -F'|' '$2 == "1" {print $1; exit}')`,
-        'if [ -z "$p" ]; then',
-        "  tmux display-message 'pi-notify: dashboard is not running'",
-        'elif [ "$p" = \'#{pane_id}\' ]; then',
-        '  :',
-        'else',
-        '  tmux switch-client -t "$p"',
-        'fi',
-      ].join('\n'),
-    )
+    expect(script).toBe(EXPECTED_SCRIPT)
   })
 })

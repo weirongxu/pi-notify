@@ -27,7 +27,8 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
     "enabled": true, // master on/off switch (default: true)
     "notifyTools": [], // tools that trigger "Tool call" notifications (default: empty, i.e. no tool notifications)
     "tmuxSymbol": "🔔", // symbol appended to tmux window title (empty string to disable)
-    "dashboardTmuxKey": "alt+d", // tmux jump key offered by default for the dashboard window (triggered as prefix + key)
+    "dashboardTmuxKey": "alt+d", // tmux jump key offered by default for the dashboard window (triggered directly; enable dashboardTmuxKeyNeedsPrefix for prefix + key)
+    "dashboardTmuxKeyNeedsPrefix": false, // require the tmux prefix before the dashboard key (default: false, i.e. no prefix needed)
     "finished": true, // enable/disable "Idle" notification
     "events": {
       "my:custom:event": "Custom event triggered", // custom event channel -> notification message
@@ -74,7 +75,7 @@ Events are automatically cleaned up on `session_shutdown`.
 
 Open a full-screen dashboard listing all pi sessions with summary counts (total, running, idle).
 
-Inside tmux, it registers a live keybinding (default `alt+d`, configurable via `dashboardTmuxKey`) that jumps to the dashboard pane from any pane — trigger with `prefix + alt+d`.
+Inside tmux, it registers a live keybinding (default `alt+d`, configurable via `dashboardTmuxKey`) that jumps to the dashboard pane from any pane — trigger with `alt+d` (set `dashboardTmuxKeyNeedsPrefix: true` to require `prefix + alt+d`).
 
 
 ### `/notify-test`

@@ -36,6 +36,7 @@ describe('parseConfig', () => {
         unfocusedActivityThresholdSecs: 5,
         tmuxSymbol: '!',
         dashboardTmuxKey: 'ctrl+g',
+        dashboardTmuxKeyNeedsPrefix: true,
       },
     })
     expect(parseConfig(content)).toEqual({
@@ -50,6 +51,7 @@ describe('parseConfig', () => {
         unfocusedActivityThresholdSecs: 5,
         tmuxSymbol: '!',
         dashboardTmuxKey: 'ctrl+g',
+        dashboardTmuxKeyNeedsPrefix: true,
       },
     })
   })

@@ -102,7 +102,11 @@ function runDashboard(
 async function main(): Promise<void> {
   if (inTmux) {
     markDashboardTmuxPane()
-    registerDashboardTmuxBinding(loadConfig().dashboardTmuxKey)
+    const cfg = loadConfig()
+    registerDashboardTmuxBinding(
+      cfg.dashboardTmuxKey,
+      cfg.dashboardTmuxKeyNeedsPrefix,
+    )
   }
 
   const initialSessions = await readSessions()

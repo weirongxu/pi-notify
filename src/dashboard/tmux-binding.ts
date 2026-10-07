@@ -55,10 +55,11 @@ export function toTmuxKey(key: string): string {
 
 export function registerDashboardTmuxBinding(
   key: string,
+  needsPrefix: boolean,
   run: CommandRunner = defaultRunner,
 ): void {
-  // Register in the prefix table (no -n flag) so the user presses prefix + key.
-  run('tmux', ['bind-key', toTmuxKey(key), 'run-shell', JUMP_SCRIPT])
+  const flag = needsPrefix ? [] : ['-n']
+  run('tmux', ['bind-key', ...flag, toTmuxKey(key), 'run-shell', JUMP_SCRIPT])
 }
 
 export function markDashboardTmuxPane(
