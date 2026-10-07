@@ -10,9 +10,9 @@ import {
   vi,
 } from 'vitest'
 
-import type { SessionState } from '../consts.js'
-import type { SessionRecord } from '../state-store.js'
-import { toggleSessionStarred } from '../state-store.js'
+import type { SessionState } from '../../stores/consts.js'
+import type { SessionRecord } from '../../stores/state-store.js'
+import { toggleSessionStarred } from '../../stores/state-store.js'
 import { jumpToSessionTmuxWindow } from '../tmux-jump.js'
 import { Dashboard } from './dashboard.js'
 import type { Theme, ThemeColor } from './theme.js'
@@ -21,7 +21,7 @@ vi.mock('../tmux-jump.js', () => ({
   jumpToSessionTmuxWindow: vi.fn(),
 }))
 
-vi.mock('../state-store.js', () => ({
+vi.mock('../../stores/state-store.js', () => ({
   toggleSessionStarred: vi.fn(),
 }))
 

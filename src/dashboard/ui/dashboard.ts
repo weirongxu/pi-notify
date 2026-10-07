@@ -1,7 +1,7 @@
 import type { Component } from '@earendil-works/pi-tui'
 
-import type { SessionRecord } from '../state-store.js'
-import { toggleSessionStarred } from '../state-store.js'
+import type { SessionRecord } from '../../stores/state-store.js'
+import { toggleSessionStarred } from '../../stores/state-store.js'
 import { jumpToSessionTmuxWindow } from '../tmux-jump.js'
 import { Confirm } from './confirm.js'
 import { SessionTable } from './session-table.js'

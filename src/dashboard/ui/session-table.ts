@@ -2,7 +2,7 @@ import type { Component } from '@earendil-works/pi-tui'
 import { Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
 import { clamp } from 'lodash-es'
 
-import type { SessionRecord } from '../state-store.js'
+import type { SessionRecord } from '../../stores/state-store.js'
 import {
   COLUMN_SEPARATOR,
   resolveColumns,

@@ -7,7 +7,8 @@ import {
 } from '@earendil-works/pi-tui'
 
 import { loadConfig } from '../config.js'
-import { readSessions, type SessionRecord } from './state-store.js'
+import { readSessions, type SessionRecord } from '../stores/state-store.js'
+import { watchStore } from '../stores/watch-store.js'
 import {
   markDashboardTmuxPane,
   registerDashboardTmuxBinding,
@@ -15,7 +16,6 @@ import {
 } from './tmux-binding.js'
 import { Dashboard } from './ui/dashboard.js'
 import { createTheme } from './ui/theme.js'
-import { watchStore } from './watch-store.js'
 
 const inTmux = process.env.TMUX !== undefined
 

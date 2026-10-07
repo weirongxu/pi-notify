@@ -1,7 +1,7 @@
 import { truncateToWidth } from '@earendil-works/pi-tui'
 import { sumBy } from 'lodash-es'
 
-import type { SessionRecord } from '../state-store.js'
+import type { SessionRecord } from '../../stores/state-store.js'
 import type { Theme, ThemeColor } from './theme.js'
 
 interface Column {
