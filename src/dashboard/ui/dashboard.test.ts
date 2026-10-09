@@ -102,7 +102,7 @@ describe('Dashboard render clipping', () => {
       '[x] kill',
       '[o] show/hide ids',
       '[r] refresh',
-      '[q/esc] close',
+      '[q] close',
     ])
     dashboard.dispose()
   })
@@ -676,6 +676,11 @@ describe('kill confirmation', () => {
     dashboard.handleInput(Key.escape)
     expect(killSpy).not.toHaveBeenCalled()
     expect(confirming()).toBe(false)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('esc does not close the dashboard', () => {
+    dashboard.handleInput(Key.escape)
     expect(onClose).not.toHaveBeenCalled()
   })
 

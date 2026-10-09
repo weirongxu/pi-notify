@@ -18,7 +18,7 @@ const HINT_KEYS: [string, string][] = [
   ['x', 'kill'],
   ['o', 'show/hide ids'],
   ['r', 'refresh'],
-  ['q/esc', 'close'],
+  ['q', 'close'],
 ]
 
 export interface SessionTableProps {
@@ -188,7 +188,7 @@ export class SessionTable implements Component {
       return
     }
 
-    if (matchesKey(data, 'q') || matchesKey(data, Key.escape)) {
+    if (matchesKey(data, 'q')) {
       this.onClose()
       return
     }
