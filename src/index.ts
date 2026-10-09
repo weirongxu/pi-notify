@@ -26,7 +26,7 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
   const focusTracker = new FocusTracker(pi, tmuxTitleTracker, config)
   const jobTracker = new JobTracker(pi)
   const stateTracker = new StateTracker(pi, jobTracker, config)
-  const notifyTest = new NotifyTest(pi, title, tmuxTitleTracker)
+  const notifyTest = new NotifyTest(pi, title, tmuxTitleTracker, config)
   const sessionState = new SessionState(pi)
   const sessionStore = new SessionStore(pi, stateTracker)
   const dashboardCommand = new DashboardCommand(pi)
@@ -42,7 +42,7 @@ export default function piNotifyExtension(pi: ExtensionAPI): void {
       if (focusTracker.isFocused ?? recentlyActive) return
     }
     tmuxTitleTracker.mark()
-    notify(title, body)
+    notify(title, body, { osc: config.osc, desktop: config.desktop })
   }
 
   const registrables: Registerable[] = [

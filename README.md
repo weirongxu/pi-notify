@@ -27,6 +27,8 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
     "enabled": true, // master on/off switch (default: true)
     "notifyTools": [], // tools that trigger "Tool call" notifications (default: empty, i.e. no tool notifications)
     "tmuxSymbol": "🔔", // symbol appended to tmux window title (empty string to disable)
+    "osc": true, // also emit OSC 777 / OSC 9 terminal escape-sequence notifications (default: true)
+    "desktop": true, // also send native desktop notifications via node-notifier / Windows toast (default: true)
     "dashboardTmuxKey": "alt+d", // tmux jump key offered by default for the dashboard window (triggered directly; enable dashboardTmuxKeyNeedsPrefix for prefix + key)
     "dashboardTmuxKeyNeedsPrefix": false, // require the tmux prefix before the dashboard key (default: false, i.e. no prefix needed)
     "finished": true, // enable/disable "Idle" notification

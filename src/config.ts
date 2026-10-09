@@ -20,6 +20,8 @@ const NotifyConfigSchema = Type.Object({
   onlyNotifyWhenUnfocused: Type.Optional(Type.Boolean()),
   unfocusedActivityThresholdSecs: Type.Optional(Type.Number()),
   tmuxSymbol: Type.Optional(Type.String()),
+  osc: Type.Optional(Type.Boolean()),
+  desktop: Type.Optional(Type.Boolean()),
   dashboardTmuxKey: Type.Optional(Type.String()),
   dashboardTmuxKeyNeedsPrefix: Type.Optional(Type.Boolean()),
 })
@@ -33,6 +35,8 @@ export interface ResolvedNotifyConfig {
   readonly onlyNotifyWhenUnfocused: boolean
   readonly unfocusedActivityThresholdMs: number
   readonly tmuxSymbol: string
+  readonly osc: boolean
+  readonly desktop: boolean
   readonly dashboardTmuxKey: string
   readonly dashboardTmuxKeyNeedsPrefix: boolean
 }
@@ -103,6 +107,8 @@ export function loadConfig(): ResolvedNotifyConfig {
       (cfg.unfocusedActivityThresholdSecs ?? 30) * 1000,
     ),
     tmuxSymbol: cfg.tmuxSymbol ?? DEFAULT_TMUX_SYMBOL,
+    osc: cfg.osc ?? true,
+    desktop: cfg.desktop ?? true,
     dashboardTmuxKey: cfg.dashboardTmuxKey ?? DEFAULT_DASHBOARD_TMUX_KEY,
     dashboardTmuxKeyNeedsPrefix: cfg.dashboardTmuxKeyNeedsPrefix ?? false,
   }

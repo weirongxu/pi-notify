@@ -1,6 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseConfig } from './config.js'
+import { loadConfig, parseConfig } from './config.js'
+
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn(() => true),
+  readFileSync: vi.fn(() => '{}'),
+}))
+
+const ALL_DEFAULTS = {
+  enabled: true,
+  notifyTools: new Set(),
+  events: {},
+  finished: true,
+  onlyNotifyWhenUnfocused: true,
+  unfocusedActivityThresholdMs: 30000,
+  tmuxSymbol: '🔔',
+  osc: true,
+  desktop: true,
+  dashboardTmuxKey: 'alt+d',
+  dashboardTmuxKeyNeedsPrefix: false,
+}
 
 describe('parseConfig', () => {
   it('returns malformed for invalid JSON', () => {
@@ -35,6 +54,8 @@ describe('parseConfig', () => {
         onlyNotifyWhenUnfocused: false,
         unfocusedActivityThresholdSecs: 5,
         tmuxSymbol: '!',
+        osc: false,
+        desktop: false,
         dashboardTmuxKey: 'ctrl+g',
         dashboardTmuxKeyNeedsPrefix: true,
       },
@@ -42,17 +63,7 @@ describe('parseConfig', () => {
     expect(parseConfig(content)).toEqual({
       status: 'valid',
       settings: JSON.parse(content),
-      piNotify: {
-        enabled: false,
-        notifyTools: ['a', 'b'],
-        events: { session: 'all', finished: false },
-        finished: false,
-        onlyNotifyWhenUnfocused: false,
-        unfocusedActivityThresholdSecs: 5,
-        tmuxSymbol: '!',
-        dashboardTmuxKey: 'ctrl+g',
-        dashboardTmuxKeyNeedsPrefix: true,
-      },
+      piNotify: JSON.parse(content).piNotify,
     })
   })
 
@@ -77,5 +88,35 @@ describe('parseConfig', () => {
       settings: JSON.parse(content),
       piNotify: {},
     })
+  })
+})
+
+describe('loadConfig', () => {
+  beforeEach(async () => {
+    const { existsSync, readFileSync } = await import('node:fs')
+    vi.mocked(existsSync).mockClear().mockReturnValue(true)
+    vi.mocked(readFileSync).mockClear().mockReturnValue('{}')
+  })
+
+  it('returns all defaults for empty settings', () => {
+    expect(loadConfig()).toEqual(ALL_DEFAULTS)
+  })
+
+  it('respects explicit desktop false', async () => {
+    const { readFileSync } = await import('node:fs')
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({ piNotify: { desktop: false } }),
+    )
+    const config = loadConfig()
+    expect(config.desktop).toBe(false)
+    expect(config.osc).toBe(true)
+  })
+
+  it('returns all defaults and reads nothing when settings file is missing', async () => {
+    const { existsSync, readFileSync } = await import('node:fs')
+    vi.mocked(existsSync).mockReturnValue(false)
+    const config = loadConfig()
+    expect(readFileSync).not.toHaveBeenCalled()
+    expect(config).toEqual(ALL_DEFAULTS)
   })
 })

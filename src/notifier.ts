@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
+import { sendOsc } from './osc.js'
+
 /**
  * WSL reports `process.platform === "linux"` but the user's desktop is Windows.
  * node-notifier would route to `notify-send` (not installed) and silently fail,
@@ -37,7 +39,7 @@ function windowsToast(title: string, body: string): void {
   execFile(exe, ['-NoProfile', '-NonInteractive', '-Command', script], () => {})
 }
 
-async function piNotify(title: string, body: string): Promise<void> {
+async function desktopNotify(title: string, body: string): Promise<void> {
   if (isWSL || process.platform === 'win32') {
     windowsToast(title, body)
     return
@@ -50,6 +52,16 @@ async function piNotify(title: string, body: string): Promise<void> {
   })
 }
 
-export function notify(title: string, body: string): void {
-  void piNotify(title, body).catch(() => {})
+export interface NotifyOptions {
+  readonly osc: boolean
+  readonly desktop: boolean
+}
+
+export function notify(
+  title: string,
+  body: string,
+  { osc, desktop }: NotifyOptions,
+): void {
+  if (osc) sendOsc({ title, body })
+  if (desktop) void desktopNotify(title, body).catch(() => {})
 }

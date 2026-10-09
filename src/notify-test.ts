@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
-import { notify as sendNotification } from './notifier.js'
+import type { ResolvedNotifyConfig } from './config.js'
+import { notify } from './notifier.js'
 import { sleep } from './shared/utils.js'
 import type { TmuxTitleTracker } from './tmux-title.js'
 
@@ -10,11 +11,18 @@ export class NotifyTest {
   private readonly pi: ExtensionAPI
   private readonly title: string
   private readonly titleTracker: TmuxTitleTracker
+  private readonly config: ResolvedNotifyConfig
 
-  constructor(pi: ExtensionAPI, title: string, titleTracker: TmuxTitleTracker) {
+  constructor(
+    pi: ExtensionAPI,
+    title: string,
+    titleTracker: TmuxTitleTracker,
+    config: ResolvedNotifyConfig,
+  ) {
     this.pi = pi
     this.title = title
     this.titleTracker = titleTracker
+    this.config = config
   }
 
   register(): void {
@@ -23,7 +31,10 @@ export class NotifyTest {
       handler: async (args) => {
         await sleep(3000)
         this.titleTracker.mark()
-        sendNotification(this.title, args.trim() || DEFAULT_BODY)
+        notify(this.title, args.trim() || DEFAULT_BODY, {
+          osc: this.config.osc,
+          desktop: this.config.desktop,
+        })
       },
     })
   }
