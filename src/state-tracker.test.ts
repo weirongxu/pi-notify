@@ -95,6 +95,7 @@ const BASE_CONFIG: ResolvedNotifyConfig = {
   finished: true,
   onlyNotifyWhenUnfocused: true,
   unfocusedActivityThresholdMs: 0,
+  uiPromptDelayMs: 0,
   notifySymbol: '',
 } as unknown as ResolvedNotifyConfig
 
@@ -576,5 +577,96 @@ describe('StateTracker', () => {
     await flush()
 
     expect(states).toEqual(['running', 'idle'])
+  })
+
+  describe('uiPromptDelayMs', () => {
+    const DELAY_CONFIG = {
+      ...BASE_CONFIG,
+      uiPromptDelayMs: 3000,
+    } as ResolvedNotifyConfig
+
+    const startPrompt = (pi: FakePi, kind = 'custom'): void => {
+      pi.emit('ui_prompt_start', {
+        type: 'ui_prompt_start',
+        reason: 'ui_prompt',
+        kind,
+      })
+    }
+
+    it('waits the delay before notifying', () => {
+      const pi = makeFakePi()
+      const { bodies } = makeTracker(pi, DELAY_CONFIG)
+
+      startPrompt(pi)
+      vi.advanceTimersByTime(2999)
+      expect(bodies).toEqual([])
+
+      vi.advanceTimersByTime(1)
+      expect(bodies).toEqual(['Waiting: Prompt'])
+    })
+
+    it('drops the notification when the prompt resolves first', () => {
+      const pi = makeFakePi()
+      const { bodies } = makeTracker(pi, DELAY_CONFIG)
+
+      // The permission-system auto-confirm case: a dialog that opens and
+      // closes well inside the delay must stay silent.
+      startPrompt(pi)
+      vi.advanceTimersByTime(900)
+      pi.emit('ui_prompt_end', { type: 'ui_prompt_end', reason: 'ui_prompt' })
+      vi.advanceTimersByTime(10000)
+
+      expect(bodies).toEqual([])
+    })
+
+    it('notifies once for nested prompts', () => {
+      const pi = makeFakePi()
+      const { bodies } = makeTracker(pi, DELAY_CONFIG)
+
+      startPrompt(pi, 'select')
+      vi.advanceTimersByTime(100)
+      startPrompt(pi, 'confirm')
+      vi.advanceTimersByTime(3000)
+
+      expect(bodies).toEqual(['Waiting: Select'])
+
+      pi.emit('ui_prompt_end', { type: 'ui_prompt_end', reason: 'ui_prompt' })
+      pi.emit('ui_prompt_end', { type: 'ui_prompt_end', reason: 'ui_prompt' })
+      vi.advanceTimersByTime(10000)
+
+      expect(bodies).toEqual(['Waiting: Select'])
+    })
+
+    it('keeps the pending notification while an inner prompt closes', () => {
+      const pi = makeFakePi()
+      const { bodies } = makeTracker(pi, DELAY_CONFIG)
+
+      startPrompt(pi, 'select')
+      startPrompt(pi, 'confirm')
+      pi.emit('ui_prompt_end', { type: 'ui_prompt_end', reason: 'ui_prompt' })
+      vi.advanceTimersByTime(3000)
+
+      expect(bodies).toEqual(['Waiting: Select'])
+    })
+
+    it('clears a pending notification on stop', () => {
+      const pi = makeFakePi()
+      const { tracker, bodies } = makeTracker(pi, DELAY_CONFIG)
+
+      startPrompt(pi)
+      tracker.stop()
+      vi.advanceTimersByTime(10000)
+
+      expect(bodies).toEqual([])
+    })
+
+    it('still notifies immediately when the delay is zero', () => {
+      const pi = makeFakePi()
+      const { bodies } = makeTracker(pi)
+
+      startPrompt(pi)
+
+      expect(bodies).toEqual(['Waiting: Prompt'])
+    })
   })
 })

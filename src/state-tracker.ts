@@ -40,6 +40,7 @@ export class StateTracker extends Registrar {
   private readonly jobTracker: JobTracker
   private readonly config: ResolvedNotifyConfig
   private idleTimer: NodeJS.Timeout | null = null
+  private promptNotifyTimer: NodeJS.Timeout | null = null
   private running = false
   private uiPromptDepth = 0
   private notify: NotifyAction = () => {}
@@ -75,6 +76,36 @@ export class StateTracker extends Registrar {
     }
   }
 
+  private clearPromptNotifyTimer(): void {
+    if (this.promptNotifyTimer) {
+      clearTimeout(this.promptNotifyTimer)
+      this.promptNotifyTimer = null
+    }
+  }
+
+  /**
+   * Announce a waiting prompt, optionally only once it has outlived
+   * `uiPromptDelayMs`. A short-lived prompt (an auto-confirmed permission
+   * dialog, for example) resolves before the timer fires, so it never
+   * notifies at all.
+   */
+  private notifyPrompt(message: string): void {
+    if (this.uiPromptDelayMs <= 0) {
+      this.notify(message)
+      return
+    }
+    this.clearPromptNotifyTimer()
+    this.promptNotifyTimer = setTimeout(() => {
+      this.promptNotifyTimer = null
+      this.notify(message)
+    }, this.uiPromptDelayMs)
+  }
+
+  private get uiPromptDelayMs(): number {
+    const delay = this.config.uiPromptDelayMs
+    return Number.isFinite(delay) && delay > 0 ? delay : 0
+  }
+
   private markRunning(): void {
     if (this.running) return
     this.running = true
@@ -105,14 +136,21 @@ export class StateTracker extends Registrar {
     this.pi.on('ui_prompt_start', (event) => {
       this.clearIdleTimer()
       this.uiPromptDepth++
-      this.notify(promptMessage(event.kind, event.title))
       this.running = false
+      // Nested prompts belong to the outer one the user is already looking
+      // at; only the outermost prompt gets its own notification.
+      if (this.uiPromptDepth === 1) {
+        this.notifyPrompt(promptMessage(event.kind, event.title))
+      }
       void this.events.emit('ui_prompt', `${event.kind}:${event.title ?? ''}`)
     })
 
     this.pi.on('ui_prompt_end', () => {
       if (this.uiPromptDepth > 0) this.uiPromptDepth--
       if (this.uiPromptDepth > 0) return
+      // The prompt closed before the delay elapsed: the user never had to
+      // act on it, so drop the pending notification.
+      this.clearPromptNotifyTimer()
       // Revert the transient prompt state once the last prompt closes.
       if (this.running || this.jobTracker.hasActiveJobs) {
         void this.events.emit('running')
@@ -170,5 +208,6 @@ export class StateTracker extends Registrar {
     this.running = false
     this.uiPromptDepth = 0
     this.clearIdleTimer()
+    this.clearPromptNotifyTimer()
   }
 }
