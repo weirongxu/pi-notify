@@ -14,6 +14,7 @@ const ALL_DEFAULTS = {
   finished: true,
   onlyNotifyWhenUnfocused: true,
   unfocusedActivityThresholdMs: 30000,
+  uiPromptDelayMs: 0,
   notifySymbol: '🔔',
   desktop: true,
   osc777: true,
@@ -129,5 +130,21 @@ describe('loadConfig', () => {
     const config = loadConfig()
     expect(readFileSync).not.toHaveBeenCalled()
     expect(config).toEqual(ALL_DEFAULTS)
+  })
+
+  it('converts uiPromptDelaySecs to milliseconds', async () => {
+    const { readFileSync } = await import('node:fs')
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({ piNotify: { uiPromptDelaySecs: 3 } }),
+    )
+    expect(loadConfig().uiPromptDelayMs).toBe(3000)
+  })
+
+  it('floors a negative uiPromptDelaySecs to zero', async () => {
+    const { readFileSync } = await import('node:fs')
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({ piNotify: { uiPromptDelaySecs: -5 } }),
+    )
+    expect(loadConfig().uiPromptDelayMs).toBe(0)
   })
 })

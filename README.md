@@ -40,6 +40,7 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
     "finishedThrottleSecs": 0, // 0 = always notify; >0 = skip finished toasts for runs shorter than N seconds
     "onlyNotifyWhenUnfocused": true, // only notify when user has been inactive
     "unfocusedActivityThresholdSecs": 30, // seconds of inactivity before considering user "unfocused"
+    "uiPromptDelaySecs": 0, // 0 = notify as soon as a prompt opens; >0 = only notify if it is still open after N seconds
   },
 }
 ```
@@ -53,6 +54,18 @@ All options live under the `piNotify` key in `~/.pi/agent/settings.json`. Everyt
 | **UI prompts**    | `ui_prompt_start` (requires pi >= 0.85.0)                             | `Waiting: <kind>[ — <title>]` |
 | **Custom events** | Custom pi event channels configured in `events`                       | Customizable                      |
 | **External API**  | `pi.events.emit('pi-notify:notify', 'message')` from other extensions | The emitted message               |
+
+### UI prompts that resolve themselves
+
+Some permission prompts open and close without ever waiting for a human: an
+asynchronous authorizer (an auto-review extension, for example) may mount the
+dialog while it decides, then confirm it about a second later. Notifying on
+`ui_prompt_start` alone therefore produces a notification per review rather
+than per decision that actually needs you.
+
+`uiPromptDelaySecs` delays the UI-prompt notification by N seconds and cancels
+it when the prompt closes first, so only prompts that genuinely stay open reach
+you. `0` keeps the immediate behaviour described above.
 
 ### Job tracking for background tasks
 

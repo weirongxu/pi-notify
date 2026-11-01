@@ -19,6 +19,7 @@ const NotifyConfigSchema = Type.Object({
   finished: Type.Optional(Type.Boolean()),
   onlyNotifyWhenUnfocused: Type.Optional(Type.Boolean()),
   unfocusedActivityThresholdSecs: Type.Optional(Type.Number()),
+  uiPromptDelaySecs: Type.Optional(Type.Number()),
   notifySymbol: Type.Optional(Type.String()),
   desktop: Type.Optional(Type.Boolean()),
   osc777: Type.Optional(Type.Boolean()),
@@ -35,6 +36,8 @@ export interface ResolvedNotifyConfig {
   readonly finished: boolean
   readonly onlyNotifyWhenUnfocused: boolean
   readonly unfocusedActivityThresholdMs: number
+  /** Milliseconds a UI prompt must stay open before it is announced (0 = immediately). */
+  readonly uiPromptDelayMs: number
   readonly notifySymbol: string
   readonly desktop: boolean
   readonly osc777: boolean
@@ -108,6 +111,7 @@ export function loadConfig(): ResolvedNotifyConfig {
       0,
       (cfg.unfocusedActivityThresholdSecs ?? 30) * 1000,
     ),
+    uiPromptDelayMs: Math.max(0, (cfg.uiPromptDelaySecs ?? 0) * 1000),
     notifySymbol: cfg.notifySymbol ?? DEFAULT_NOTIFY_SYMBOL,
     desktop: cfg.desktop ?? true,
     osc777: cfg.osc777 ?? true,
